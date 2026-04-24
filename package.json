@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "jspdf": "^4.2.1",
     "next": "15.5.15",
     "openai": "^6.34.0",

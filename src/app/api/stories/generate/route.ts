@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
       storyOptions: effectiveOptions,
       apiBaseUrl: config.apiBaseUrl,
       model: config.model,
+      localModelId: config.localModelId,
     });
   } catch (err) {
     console.error('Story generation error:', err);

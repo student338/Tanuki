@@ -38,6 +38,13 @@ export interface Config {
   apiBaseUrl?: string;
   /** Model name to use (e.g. gpt-4o-mini, llama3, mistral). */
   model?: string;
+  /**
+   * HuggingFace model ID or absolute path to a local directory containing
+   * .safetensors model files.  When set, story generation runs locally via
+   * @huggingface/transformers instead of calling an external API.
+   * Examples: "facebook/opt-125m", "/data/models/my-llm"
+   */
+  localModelId?: string;
   /** Per-student configuration set by admins. */
   userConfigs?: Record<string, UserConfig>;
 }

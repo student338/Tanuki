@@ -36,6 +36,11 @@ export async function POST(req: NextRequest) {
       ? body.model.trim()
       : undefined;
   }
+  if ('localModelId' in body) {
+    updated.localModelId = typeof body.localModelId === 'string' && body.localModelId.trim()
+      ? body.localModelId.trim()
+      : undefined;
+  }
   if ('userConfigs' in body) {
     updated.userConfigs = typeof body.userConfigs === 'object' && body.userConfigs !== null
       ? body.userConfigs
