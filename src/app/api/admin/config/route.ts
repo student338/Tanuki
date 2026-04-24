@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getConfig, saveConfig } from '@/lib/storage';
+import { getConfig, saveConfig, Config } from '@/lib/storage';
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -15,10 +15,33 @@ export async function POST(req: NextRequest) {
   if (!user || user.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-  const { systemPrompt } = await req.json();
-  if (typeof systemPrompt !== 'string') {
+  const body = await req.json();
+  if (typeof body.systemPrompt !== 'string') {
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
   }
-  saveConfig({ systemPrompt });
+
+  const existing = getConfig();
+  const updated: Config = {
+    ...existing,
+    systemPrompt: body.systemPrompt,
+  };
+
+  if ('apiBaseUrl' in body) {
+    updated.apiBaseUrl = typeof body.apiBaseUrl === 'string' && body.apiBaseUrl.trim()
+      ? body.apiBaseUrl.trim()
+      : undefined;
+  }
+  if ('model' in body) {
+    updated.model = typeof body.model === 'string' && body.model.trim()
+      ? body.model.trim()
+      : undefined;
+  }
+  if ('userConfigs' in body) {
+    updated.userConfigs = typeof body.userConfigs === 'object' && body.userConfigs !== null
+      ? body.userConfigs
+      : undefined;
+  }
+
+  saveConfig(updated);
   return NextResponse.json({ ok: true });
 }
