@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes orbFloat {
+  0%, 100% { transform: translateY(0px) translateX(0px) scale(1); }
+  25% { transform: translateY(-30px) translateX(20px) scale(1.05); }
+  50% { transform: translateY(-15px) translateX(-15px) scale(0.95); }
+  75% { transform: translateY(-40px) translateX(10px) scale(1.02); }
+}
+
+@keyframes orbFloat2 {
+  0%, 100% { transform: translateY(0px) translateX(0px) scale(1); }
+  33% { transform: translateY(-50px) translateX(-25px) scale(1.08); }
+  66% { transform: translateY(-20px) translateX(30px) scale(0.92); }
+}
+
+@keyframes orbFloat3 {
+  0%, 100% { transform: translateY(0px) translateX(0px) scale(1); }
+  20% { transform: translateY(-25px) translateX(15px) scale(1.04); }
+  60% { transform: translateY(-45px) translateX(-20px) scale(0.96); }
+  80% { transform: translateY(-10px) translateX(25px) scale(1.03); }
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.orb-multiply { mix-blend-mode: multiply; }
+.orb-screen { mix-blend-mode: screen; }
+
+.animate-orb1 { animation: orbFloat 8s ease-in-out infinite; }
+.animate-orb2 { animation: orbFloat2 11s ease-in-out infinite; }
+.animate-orb3 { animation: orbFloat3 14s ease-in-out infinite; }
+.animate-orb4 { animation: orbFloat 9s ease-in-out infinite reverse; }
+.animate-orb5 { animation: orbFloat2 12s ease-in-out infinite reverse; }
+.animate-orb6 { animation: orbFloat3 10s ease-in-out infinite; }
