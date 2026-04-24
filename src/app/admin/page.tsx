@@ -24,6 +24,7 @@ export default function AdminPage() {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [apiBaseUrl, setApiBaseUrl] = useState('');
   const [model, setModel] = useState('');
+  const [localModelId, setLocalModelId] = useState('');
   const [userConfigs, setUserConfigs] = useState<Record<string, UserConfig>>({});
   const [stories, setStories] = useState<Story[]>([]);
   const [saving, setSaving] = useState(false);
@@ -43,6 +44,7 @@ export default function AdminPage() {
     setSystemPrompt(cfg.systemPrompt ?? '');
     setApiBaseUrl(cfg.apiBaseUrl ?? '');
     setModel(cfg.model ?? '');
+    setLocalModelId(cfg.localModelId ?? '');
     setUserConfigs(cfg.userConfigs ?? {});
     setStories(Array.isArray(storiesData) ? storiesData : []);
   }, [router]);
@@ -63,6 +65,7 @@ export default function AdminPage() {
         systemPrompt,
         apiBaseUrl: apiBaseUrl.trim() || undefined,
         model: model.trim() || undefined,
+        localModelId: localModelId.trim() || undefined,
         userConfigs,
       }),
     });
@@ -154,6 +157,25 @@ export default function AdminPage() {
                 className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-300 mb-1">
+              Local .safetensors Model
+              <span className="text-gray-500 ml-2 text-xs">(overrides API settings above when set)</span>
+            </label>
+            <input
+              type="text"
+              value={localModelId}
+              onChange={(e) => setLocalModelId(e.target.value)}
+              placeholder="e.g. facebook/opt-125m  or  /data/models/my-llm"
+              className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Enter a HuggingFace model ID to download and run locally, or an absolute path to a
+              directory containing .safetensors weight files already on this server.
+              The model is loaded once and cached for subsequent requests.
+            </p>
           </div>
 
           <div>

@@ -6,6 +6,12 @@ export interface GenerateOptions {
   storyOptions?: StoryOptions;
   apiBaseUrl?: string;
   model?: string;
+  /**
+   * HuggingFace model ID or local directory path for .safetensors model
+   * inference.  When set, overrides apiBaseUrl / model and runs generation
+   * locally via @huggingface/transformers.
+   */
+  localModelId?: string;
 }
 
 function buildUserMessage(userRequest: string, opts?: StoryOptions): string {
@@ -30,11 +36,23 @@ function buildUserMessage(userRequest: string, opts?: StoryOptions): string {
 }
 
 export async function generateStory(options: GenerateOptions): Promise<string> {
-  const { systemPrompt, userRequest, storyOptions, apiBaseUrl, model } = options;
+  const { systemPrompt, userRequest, storyOptions, apiBaseUrl, model, localModelId } = options;
   const apiKey = process.env.OPENAI_API_KEY;
 
   const userMessage = buildUserMessage(userRequest, storyOptions);
 
+  const chapterCount = storyOptions?.chapterCount ?? 1;
+  // Rough token budget: ~300 words (~420 tokens) per chapter
+  const maxTokens = Math.min(4000, Math.max(600, chapterCount * 420));
+
+  // ── Local .safetensors model (highest priority) ──────────────────────────
+  if (localModelId) {
+    const { generateWithLocalModel } = await import('./local-model');
+    const prompt = `${systemPrompt}\n\n${userMessage}`;
+    return generateWithLocalModel(localModelId, prompt, maxTokens);
+  }
+
+  // ── External API (OpenAI or compatible) ─────────────────────────────────
   if (!apiKey && !apiBaseUrl) {
     await new Promise((r) => setTimeout(r, 800));
     return `Once upon a time in a land far away, there was a great adventure waiting to unfold. [This is a demo story since no API key is configured. Your request was: "${userRequest}"] The end.`;
@@ -45,10 +63,6 @@ export async function generateStory(options: GenerateOptions): Promise<string> {
     apiKey: apiKey ?? 'no-key',
     ...(apiBaseUrl ? { baseURL: apiBaseUrl } : {}),
   });
-
-  const chapterCount = storyOptions?.chapterCount ?? 1;
-  // Rough token budget: ~300 words (~420 tokens) per chapter
-  const maxTokens = Math.min(4000, Math.max(600, chapterCount * 420));
 
   const response = await client.chat.completions.create({
     model: model ?? 'gpt-4o-mini',
