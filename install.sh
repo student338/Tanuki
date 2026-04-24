@@ -209,7 +209,7 @@ LLAMA_MODELS=(
   "Llama-3.2-3B-Instruct Q4_K_M  (~2 GB)"
   "Mistral-7B-Instruct-v0.2 Q4_K_M (~4 GB)"
   "Phi-3-mini-4k-instruct Q4_K_M  (~2.2 GB)"
-  "Custom GGUF (enter URL or local path)"
+  "Custom GGUF (enter HuggingFace repo, URL, or local path)"
 )
 LLAMA_GGUF_URLS=(
   "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf"
@@ -258,8 +258,23 @@ install_llamacpp() {
   local model_name="${LLAMA_MODEL_NAMES[$idx]}"
 
   if [[ -z "$gguf_url" ]]; then
-    ask gguf_url "Enter GGUF download URL or full local path"
-    if [[ "$gguf_url" == http* ]]; then
+    ask gguf_url "Enter GGUF download URL, HuggingFace repo (owner/model), or local path"
+    # Detect a HuggingFace repo ID: matches owner/model, not a URL, not an
+    # absolute/relative path, and does not end with .gguf (which would be a
+    # local GGUF filename). Dots are excluded from the pattern to prevent any
+    # path-traversal sequences and because HF repo IDs use alphanumerics,
+    # underscores, and hyphens only.
+    if [[ ! "$gguf_url" == http* ]] && \
+       [[ ! "$gguf_url" == /* ]]   && \
+       [[ ! "$gguf_url" == ./* ]]  && \
+       [[ ! "$gguf_url" == *.gguf ]] && \
+       [[ "$gguf_url" =~ ^[A-Za-z0-9_-]+/[A-Za-z0-9_-]+$ ]]; then
+      local hf_repo="$gguf_url"
+      local hf_file
+      ask hf_file "Enter the GGUF filename within ${hf_repo} (e.g. model-Q4_K_M.gguf)"
+      gguf_url="https://huggingface.co/${hf_repo}/resolve/main/${hf_file}"
+      gguf_file="$hf_file"
+    elif [[ "$gguf_url" == http* ]]; then
       gguf_file="${gguf_url##*/}"
     else
       gguf_file="$gguf_url"
