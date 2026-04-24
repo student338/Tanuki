@@ -2,7 +2,44 @@
 
 An AI-powered story generation web app for students.
 
-## Setup
+## Quick Install (Interactive)
+
+The interactive installers handle Node.js dependencies, AI backend setup (vLLM, llama.cpp, or external API), and `.env.local` generation in one step.
+
+**Linux / macOS:**
+```bash
+bash install.sh
+```
+
+**Windows:**
+```bat
+install.bat
+```
+
+The installer will ask you to choose from:
+
+| Option | Description |
+|---|---|
+| **Local — vLLM** | NVIDIA GPU required; installs `vllm`, picks a model, generates `start-vllm.sh/.bat` |
+| **Local — llama.cpp** | CPU or GPU; installs `llama-cpp-python[server]`, downloads a GGUF model, generates `start-llamacpp.sh/.bat` |
+| **External API** | OpenAI, Ollama, LM Studio, Together AI, Groq, or any custom OpenAI-compatible endpoint |
+| **Mock / no AI** | Demo mode – no API key needed |
+
+After running a local backend installer, start the AI server first, then start the app:
+
+```bash
+# Terminal 1 — AI server
+bash start-vllm.sh        # or: bash start-llamacpp.sh
+
+# Terminal 2 — Tanuki Stories
+npm run dev
+```
+
+Then open the **Admin UI → Settings** and set the *API Base URL* and *Model* to match your local server.
+
+---
+
+## Manual Setup
 
 1. Install dependencies:
    ```bash
