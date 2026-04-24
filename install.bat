@@ -254,16 +254,20 @@ if "%LLAMA_MODEL_IDX%"=="4" (
     set GGUF_FILE=custom.gguf
     set BACKEND_MODEL=custom
     :: Detect a HuggingFace repo ID: not a URL, not ending in .gguf, contains /
-    echo !GGUF_URL! | findstr /C:"http" >nul 2>&1
+    :: and not a Windows absolute path (drive letter followed by : or \)
+    echo !GGUF_URL! | findstr /I /C:"http" >nul 2>&1
     if errorlevel 1 (
         echo !GGUF_URL! | findstr /R "\.gguf$" >nul 2>&1
         if errorlevel 1 (
-            echo !GGUF_URL! | findstr /C:"/" >nul 2>&1
-            if not errorlevel 1 (
-                set HF_REPO=!GGUF_URL!
-                set /p HF_FILE="Enter the GGUF filename within !HF_REPO! (e.g. model-Q4_K_M.gguf): "
-                set GGUF_URL=https://huggingface.co/!HF_REPO!/resolve/main/!HF_FILE!
-                set GGUF_FILE=!HF_FILE!
+            echo !GGUF_URL! | findstr /R "^[A-Za-z]:[/\\]" >nul 2>&1
+            if errorlevel 1 (
+                echo !GGUF_URL! | findstr /C:"/" >nul 2>&1
+                if not errorlevel 1 (
+                    set HF_REPO=!GGUF_URL!
+                    set /p HF_FILE="Enter the GGUF filename within !HF_REPO! (e.g. model-Q4_K_M.gguf): "
+                    set GGUF_URL=https://huggingface.co/!HF_REPO!/resolve/main/!HF_FILE!
+                    set GGUF_FILE=!HF_FILE!
+                )
             )
         )
     )

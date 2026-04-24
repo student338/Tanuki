@@ -261,12 +261,14 @@ install_llamacpp() {
     ask gguf_url "Enter GGUF download URL, HuggingFace repo (owner/model), or local path"
     # Detect a HuggingFace repo ID: matches owner/model, not a URL, not an
     # absolute/relative path, and does not end with .gguf (which would be a
-    # local GGUF filename).
+    # local GGUF filename). Dots are excluded from the pattern to prevent any
+    # path-traversal sequences and because HF repo IDs use alphanumerics,
+    # underscores, and hyphens only.
     if [[ ! "$gguf_url" == http* ]] && \
        [[ ! "$gguf_url" == /* ]]   && \
        [[ ! "$gguf_url" == ./* ]]  && \
        [[ ! "$gguf_url" == *.gguf ]] && \
-       [[ "$gguf_url" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+       [[ "$gguf_url" =~ ^[A-Za-z0-9_-]+/[A-Za-z0-9_-]+$ ]]; then
       local hf_repo="$gguf_url"
       local hf_file
       ask hf_file "Enter the GGUF filename within ${hf_repo} (e.g. model-Q4_K_M.gguf)"
