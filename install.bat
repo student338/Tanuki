@@ -229,7 +229,7 @@ echo %BOLD%Choose a model:%RESET%
 echo   %CYAN%1%RESET%) Llama-3.2-3B-Instruct Q4_K_M  ^(~2 GB download^)
 echo   %CYAN%2%RESET%) Mistral-7B-Instruct-v0.2 Q4_K_M ^(~4 GB download^)
 echo   %CYAN%3%RESET%) Phi-3-mini-4k-instruct Q4_K_M  ^(~2.2 GB download^)
-echo   %CYAN%4%RESET%) Custom GGUF ^(enter URL or local path^)
+echo   %CYAN%4%RESET%) Custom GGUF ^(enter HuggingFace repo, URL, or local path^)
 echo.
 set /p LLAMA_MODEL_IDX="Enter number [1]: "
 if "%LLAMA_MODEL_IDX%"=="" set LLAMA_MODEL_IDX=1
@@ -250,9 +250,23 @@ if "%LLAMA_MODEL_IDX%"=="3" (
     set BACKEND_MODEL=phi-3-mini
 )
 if "%LLAMA_MODEL_IDX%"=="4" (
-    set /p GGUF_URL="Enter GGUF download URL or full local path: "
+    set /p GGUF_URL="Enter GGUF download URL, HuggingFace repo (owner/model), or local path: "
     set GGUF_FILE=custom.gguf
     set BACKEND_MODEL=custom
+    :: Detect a HuggingFace repo ID: not a URL, not ending in .gguf, contains /
+    echo !GGUF_URL! | findstr /C:"http" >nul 2>&1
+    if errorlevel 1 (
+        echo !GGUF_URL! | findstr /R "\.gguf$" >nul 2>&1
+        if errorlevel 1 (
+            echo !GGUF_URL! | findstr /C:"/" >nul 2>&1
+            if not errorlevel 1 (
+                set HF_REPO=!GGUF_URL!
+                set /p HF_FILE="Enter the GGUF filename within !HF_REPO! (e.g. model-Q4_K_M.gguf): "
+                set GGUF_URL=https://huggingface.co/!HF_REPO!/resolve/main/!HF_FILE!
+                set GGUF_FILE=!HF_FILE!
+            )
+        )
+    )
 )
 
 :: Download model if URL
