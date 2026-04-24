@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getConfig, saveConfig, Config } from '@/lib/storage';
 
+/** Only allow http/https scheme to prevent SSRF via internal network URLs. */
+function isValidApiBaseUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export async function GET() {
   const user = await getCurrentUser();
   if (!user || user.role !== 'admin') {
@@ -27,9 +37,11 @@ export async function POST(req: NextRequest) {
   };
 
   if ('apiBaseUrl' in body) {
-    updated.apiBaseUrl = typeof body.apiBaseUrl === 'string' && body.apiBaseUrl.trim()
-      ? body.apiBaseUrl.trim()
-      : undefined;
+    const raw = typeof body.apiBaseUrl === 'string' ? body.apiBaseUrl.trim() : '';
+    if (raw && !isValidApiBaseUrl(raw)) {
+      return NextResponse.json({ error: 'apiBaseUrl must use http or https scheme' }, { status: 400 });
+    }
+    updated.apiBaseUrl = raw || undefined;
   }
   if ('model' in body) {
     updated.model = typeof body.model === 'string' && body.model.trim()

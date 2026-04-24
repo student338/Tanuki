@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHmac, timingSafeEqual, scryptSync } from 'crypto';
 
 export interface User {
   username: string;
@@ -37,7 +37,14 @@ function sign(data: string): string {
 
 export function validateCredentials(username: string, password: string): User | null {
   const user = USERS[username];
-  if (!user || user.password !== password) return null;
+  if (!user) return null;
+  // Use scrypt (memory-hard, key-stretching) with a per-user salt derived from the
+  // session secret + username.  This prevents brute-force and rainbow-table attacks
+  // and is much stronger than a plain equality check or a fast HMAC comparison.
+  const salt = createHmac('sha256', getSecret()).update(username).digest();
+  const expected = scryptSync(user.password, salt, 64);
+  const actual = scryptSync(password, salt, 64);
+  if (!timingSafeEqual(expected, actual)) return null;
   return { username, role: user.role };
 }
 
@@ -56,7 +63,11 @@ export function parseSessionToken(token: string): User | null {
     const payload = token.slice(0, dotIndex);
     const sig = token.slice(dotIndex + 1);
     const expectedSig = sign(payload);
-    if (!timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expectedSig, 'hex'))) return null;
+    const sigBuf = Buffer.from(sig, 'hex');
+    const expectedBuf = Buffer.from(expectedSig, 'hex');
+    // timingSafeEqual throws when buffers have different lengths; check first.
+    if (sigBuf.length !== expectedBuf.length) return null;
+    if (!timingSafeEqual(sigBuf, expectedBuf)) return null;
     const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'));
     if (data.exp < Date.now()) return null;
     if (!data.username || !data.role) return null;

@@ -78,10 +78,6 @@ export default function LoginPage() {
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
-          <div className="mt-4 text-purple-300 text-xs text-center space-y-1">
-            <p>Admin: admin / admin123</p>
-            <p>Student: student / student123</p>
-          </div>
         </form>
       </div>
     </div>
