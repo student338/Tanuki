@@ -2,6 +2,8 @@
 
 export type Theme = 'light' | 'dark' | 'sepia' | 'orbs-white' | 'orbs-black';
 
+export const VALID_THEMES: Theme[] = ['light', 'dark', 'sepia', 'orbs-white', 'orbs-black'];
+
 interface ThemeSelectorProps {
   current: Theme;
   onChange: (theme: Theme) => void;

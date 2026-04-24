@@ -8,13 +8,27 @@ export interface User {
 
 const COOKIE_NAME = 'tanuki_session';
 
+// Demo credentials — override via ADMIN_PASSWORD / STUDENT_PASSWORD env vars
 const USERS: Record<string, { password: string; role: 'admin' | 'student' }> = {
-  admin: { password: 'admin123', role: 'admin' },
-  student: { password: 'student123', role: 'student' },
+  [process.env.ADMIN_USERNAME ?? 'admin']: {
+    password: process.env.ADMIN_PASSWORD ?? 'admin123',
+    role: 'admin',
+  },
+  [process.env.STUDENT_USERNAME ?? 'student']: {
+    password: process.env.STUDENT_PASSWORD ?? 'student123',
+    role: 'student',
+  },
 };
 
 function getSecret(): string {
-  return process.env.SESSION_SECRET ?? 'tanuki-dev-secret-change-in-production';
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('SESSION_SECRET environment variable must be set in production');
+    }
+    return 'tanuki-dev-secret-change-in-production';
+  }
+  return secret;
 }
 
 function sign(data: string): string {

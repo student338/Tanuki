@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import OrbBackground from './OrbBackground';
-import ThemeSelector, { Theme } from './ThemeSelector';
+import ThemeSelector, { Theme, VALID_THEMES } from './ThemeSelector';
 
 const themeClasses: Record<Theme, string> = {
   light: 'bg-white text-gray-900',
@@ -21,8 +21,7 @@ export default function ThemeWrapper({ children }: ThemeWrapperProps) {
 
   useEffect(() => {
     const saved = localStorage.getItem('tanuki_theme') as Theme | null;
-    const validThemes: Theme[] = ['light', 'dark', 'sepia', 'orbs-white', 'orbs-black'];
-    if (saved && validThemes.includes(saved)) setTheme(saved);
+    if (saved && VALID_THEMES.includes(saved)) setTheme(saved);
   }, []);
 
   const handleChange = (t: Theme) => {

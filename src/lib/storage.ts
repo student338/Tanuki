@@ -33,7 +33,14 @@ export function getConfig(): Config {
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(defaultConfig, null, 2));
     return defaultConfig;
   }
-  return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+  try {
+    return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8')) as Config;
+  } catch {
+    console.error('Failed to parse config.json — resetting to defaults');
+    const defaultConfig: Config = { systemPrompt: DEFAULT_SYSTEM_PROMPT };
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(defaultConfig, null, 2));
+    return defaultConfig;
+  }
 }
 
 export function saveConfig(config: Config): void {
@@ -47,7 +54,13 @@ export function getStories(): Story[] {
     fs.writeFileSync(STORIES_FILE, JSON.stringify([], null, 2));
     return [];
   }
-  return JSON.parse(fs.readFileSync(STORIES_FILE, 'utf-8'));
+  try {
+    return JSON.parse(fs.readFileSync(STORIES_FILE, 'utf-8')) as Story[];
+  } catch {
+    console.error('Failed to parse stories.json — resetting to empty list');
+    fs.writeFileSync(STORIES_FILE, JSON.stringify([], null, 2));
+    return [];
+  }
 }
 
 export function saveStory(story: Story): void {
