@@ -20,6 +20,10 @@ export default function StudentPage() {
       router.push('/login');
       return;
     }
+    if (!res.ok) {
+      setError('Failed to load stories. Please refresh the page.');
+      return;
+    }
     const data = await res.json();
     setStories(Array.isArray(data) ? data : []);
   }, [router]);

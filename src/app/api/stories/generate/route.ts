@@ -10,7 +10,13 @@ export async function POST(req: NextRequest) {
   const { request } = await req.json();
   if (!request?.trim()) return NextResponse.json({ error: 'Request is required' }, { status: 400 });
   const config = getConfig();
-  const story = await generateStory(config.systemPrompt, request);
+  let story: string;
+  try {
+    story = await generateStory(config.systemPrompt, request);
+  } catch (err) {
+    console.error('Story generation error:', err);
+    return NextResponse.json({ error: 'Story generation failed. Please try again.' }, { status: 500 });
+  }
   const storyRecord = {
     id: randomUUID(),
     username: user.username,
