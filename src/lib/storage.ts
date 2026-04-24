@@ -14,8 +14,42 @@ function ensureDataDir() {
   }
 }
 
+/** Fields the admin can lock so students cannot change them. */
+export type LockableField = 'chapterCount' | 'readingComplexity' | 'vocabularyComplexity' | 'genre';
+
+export interface StoryDefaults {
+  chapterCount?: number;
+  readingComplexity?: 'simple' | 'intermediate' | 'advanced';
+  vocabularyComplexity?: 'basic' | 'intermediate' | 'advanced';
+  genre?: string;
+}
+
+/** Per-user overrides set by admins. */
+export interface UserConfig {
+  /** Fields the student is not allowed to change. */
+  lockedFields?: LockableField[];
+  /** Admin-set default values for locked (or any) fields. */
+  defaults?: StoryDefaults;
+}
+
 export interface Config {
   systemPrompt: string;
+  /** Custom OpenAI-compatible API base URL (e.g. http://localhost:11434/v1). */
+  apiBaseUrl?: string;
+  /** Model name to use (e.g. gpt-4o-mini, llama3, mistral). */
+  model?: string;
+  /** Per-student configuration set by admins. */
+  userConfigs?: Record<string, UserConfig>;
+}
+
+/** Options the student provides when requesting a story. */
+export interface StoryOptions {
+  title?: string;
+  chapterCount?: number;
+  readingComplexity?: 'simple' | 'intermediate' | 'advanced';
+  vocabularyComplexity?: 'basic' | 'intermediate' | 'advanced';
+  genre?: string;
+  plot?: string;
 }
 
 export interface Story {
@@ -23,7 +57,10 @@ export interface Story {
   username: string;
   request: string;
   story: string;
+  title?: string;
+  options?: StoryOptions;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export function getConfig(): Config {
@@ -67,4 +104,13 @@ export function saveStory(story: Story): void {
   const stories = getStories();
   stories.unshift(story);
   fs.writeFileSync(STORIES_FILE, JSON.stringify(stories, null, 2));
+}
+
+export function updateStory(id: string, content: string): Story | null {
+  const stories = getStories();
+  const idx = stories.findIndex((s) => s.id === id);
+  if (idx === -1) return null;
+  stories[idx] = { ...stories[idx], story: content, updatedAt: new Date().toISOString() };
+  fs.writeFileSync(STORIES_FILE, JSON.stringify(stories, null, 2));
+  return stories[idx];
 }
