@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { createHmac, timingSafeEqual } from 'crypto';
 
 export interface User {
   username: string;
@@ -12,6 +13,14 @@ const USERS: Record<string, { password: string; role: 'admin' | 'student' }> = {
   student: { password: 'student123', role: 'student' },
 };
 
+function getSecret(): string {
+  return process.env.SESSION_SECRET ?? 'tanuki-dev-secret-change-in-production';
+}
+
+function sign(data: string): string {
+  return createHmac('sha256', getSecret()).update(data).digest('hex');
+}
+
 export function validateCredentials(username: string, password: string): User | null {
   const user = USERS[username];
   if (!user || user.password !== password) return null;
@@ -19,16 +28,25 @@ export function validateCredentials(username: string, password: string): User | 
 }
 
 export function createSessionToken(user: User): string {
-  const payload = { username: user.username, role: user.role, exp: Date.now() + 86400000 };
-  return Buffer.from(JSON.stringify(payload)).toString('base64');
+  const payload = Buffer.from(
+    JSON.stringify({ username: user.username, role: user.role, exp: Date.now() + 86400000 }),
+  ).toString('base64url');
+  const sig = sign(payload);
+  return `${payload}.${sig}`;
 }
 
 export function parseSessionToken(token: string): User | null {
   try {
-    const payload = JSON.parse(Buffer.from(token, 'base64').toString('utf-8'));
-    if (payload.exp < Date.now()) return null;
-    if (!payload.username || !payload.role) return null;
-    return { username: payload.username, role: payload.role };
+    const dotIndex = token.lastIndexOf('.');
+    if (dotIndex === -1) return null;
+    const payload = token.slice(0, dotIndex);
+    const sig = token.slice(dotIndex + 1);
+    const expectedSig = sign(payload);
+    if (!timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expectedSig, 'hex'))) return null;
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8'));
+    if (data.exp < Date.now()) return null;
+    if (!data.username || !data.role) return null;
+    return { username: data.username, role: data.role };
   } catch {
     return null;
   }
