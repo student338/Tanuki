@@ -7,13 +7,6 @@
 setlocal EnableDelayedExpansion
 title Tanuki Stories Installer
 
-set "RED=[91m"
-set "GREEN=[92m"
-set "YELLOW=[93m"
-set "CYAN=[96m"
-set "BOLD=[1m"
-set "RESET=[0m"
-
 :: -- Banner -------------------------------------------------------------------
 call :print_banner
 
@@ -25,14 +18,14 @@ call :run_npm_install
 
 :: -- AI backend selection -----------------------------------------------------
 echo.
-echo %CYAN%------------------------------------------------------%RESET%
+echo --------------------------------------------------------
 echo.
-echo %BOLD%How should Tanuki Stories connect to an AI model?%RESET%
+echo How should Tanuki Stories connect to an AI model?
 echo.
-echo   %CYAN%1%RESET%) Local -- vLLM         ^(NVIDIA GPU required^)
-echo   %CYAN%2%RESET%) Local -- llama.cpp    ^(CPU or GPU, GGUF models^)
-echo   %CYAN%3%RESET%) External API         ^(OpenAI, Ollama, LM Studio, etc.^)
-echo   %CYAN%4%RESET%) Mock / no AI         ^(demo mode, no API needed^)
+echo   1) Local -- vLLM         ^(NVIDIA GPU required^)
+echo   2) Local -- llama.cpp    ^(CPU or GPU, GGUF models^)
+echo   3) External API         ^(OpenAI, Ollama, LM Studio, etc.^)
+echo   4) Mock / no AI         ^(demo mode, no API needed^)
 echo.
 set /p BE_CHOICE="Enter number [1]: "
 if "%BE_CHOICE%"=="" set BE_CHOICE=1
@@ -47,13 +40,13 @@ if "%BE_CHOICE%"=="1" (
     call :configure_external_api
 ) else if "%BE_CHOICE%"=="4" (
     echo.
-    echo %CYAN%[Tanuki]%RESET% Mock mode selected -- no AI backend will be configured.
+    echo [Tanuki] Mock mode selected -- no AI backend will be configured.
     echo.
     set BACKEND_URL=
     set BACKEND_MODEL=
     set BACKEND_API_KEY=
 ) else (
-    echo %YELLOW%  Warning: Unknown choice, defaulting to mock mode.%RESET%
+    echo   Warning: Unknown choice, defaulting to mock mode.
     set BACKEND_URL=
     set BACKEND_MODEL=
     set BACKEND_API_KEY=
@@ -61,7 +54,7 @@ if "%BE_CHOICE%"=="1" (
 
 :: -- Credentials --------------------------------------------------------------
 echo.
-echo %CYAN%------------------------------------------------------%RESET%
+echo --------------------------------------------------------
 call :configure_credentials
 
 :: -- Write .env.local ---------------------------------------------------------
@@ -77,46 +70,45 @@ goto :eof
 
 :print_banner
 echo.
-echo %CYAN%%BOLD%
 echo   ######   ##    ##   ##     ## ##   ## ##  ##
 echo      ##   ####   ####  ##   ##  ##  ##  ## ##
 echo      ##  ##  ##  ## ## ##  ##   ## ##   ####
 echo      ##  ######  ##  ####  ##   ####    ##
 echo      ##  ##  ##  ##   ### ##    ## ##   ###
 echo      ##  ##  ##  ##    ##  ##   ##  ##  ## ##
-echo %RESET%
-echo   %BOLD%Tanuki Stories -- Interactive Installer (Windows)%RESET%
-echo   %CYAN%------------------------------------------------------%RESET%
+echo.
+echo   Tanuki Stories -- Interactive Installer (Windows)
+echo   --------------------------------------------------------
 echo.
 goto :eof
 
 :check_prereqs
-echo %CYAN%[Tanuki]%RESET% Checking prerequisites...
+echo [Tanuki] Checking prerequisites...
 echo.
 where node >nul 2>&1
 if errorlevel 1 (
-    echo %RED%  X  Node.js is required. Install from https://nodejs.org%RESET%
+    echo   X  Node.js is required. Install from https://nodejs.org
     pause
     exit /b 1
 )
-echo %GREEN%  OK%RESET% node found
+echo   OK  node found
 where npm >nul 2>&1
 if errorlevel 1 (
-    echo %RED%  X  npm is required ^(bundled with Node.js^).%RESET%
+    echo   X  npm is required ^(bundled with Node.js^).
     pause
     exit /b 1
 )
-echo %GREEN%  OK%RESET% npm found
+echo   OK  npm found
 echo.
 goto :eof
 
 :check_python
-echo %CYAN%[Tanuki]%RESET% Checking Python...
+echo [Tanuki] Checking Python...
 where python >nul 2>&1
 if errorlevel 1 (
     where python3 >nul 2>&1
     if errorlevel 1 (
-        echo %RED%  X  Python 3 is required for local AI backends. Install from https://python.org%RESET%
+        echo   X  Python 3 is required for local AI backends. Install from https://python.org
         pause
         exit /b 1
     )
@@ -124,44 +116,44 @@ if errorlevel 1 (
 ) else (
     set PY_CMD=python
 )
-echo %GREEN%  OK%RESET% Python found
+echo   OK  Python found
 echo.
 goto :eof
 
 :run_npm_install
-echo %CYAN%[Tanuki]%RESET% Installing Node.js dependencies...
-npm install
+echo [Tanuki] Installing Node.js dependencies...
+call npm install
 if errorlevel 1 (
-    echo %RED%  X  npm install failed.%RESET%
+    echo   X  npm install failed.
     pause
     exit /b 1
 )
-echo %GREEN%  OK%RESET% npm install complete
+echo   OK  npm install complete
 echo.
 goto :eof
 
 :: -- vLLM ---------------------------------------------------------------------
 :install_vllm
 echo.
-echo %CYAN%[Tanuki]%RESET% Installing vLLM...
-echo %YELLOW%  Warning: vLLM requires an NVIDIA GPU with CUDA.%RESET%
+echo [Tanuki] Installing vLLM...
+echo   Warning: vLLM requires an NVIDIA GPU with CUDA.
 echo.
 %PY_CMD% -m pip install --upgrade vllm
 if errorlevel 1 (
-    echo %RED%  X  vLLM installation failed.%RESET%
+    echo   X  vLLM installation failed.
     pause
     exit /b 1
 )
-echo %GREEN%  OK%RESET% vLLM installed
+echo   OK  vLLM installed
 echo.
 
-echo %BOLD%Choose a model for vLLM:%RESET%
-echo   %CYAN%1%RESET%) meta-llama/Llama-3.2-3B-Instruct   ^(small, fast -- ~6 GB VRAM^)
-echo   %CYAN%2%RESET%) meta-llama/Meta-Llama-3.1-8B-Instruct  ^(balanced -- ~16 GB VRAM^)
-echo   %CYAN%3%RESET%) mistralai/Mistral-7B-Instruct-v0.3  ^(versatile -- ~14 GB VRAM^)
-echo   %CYAN%4%RESET%) Qwen/Qwen2.5-7B-Instruct            ^(multilingual -- ~14 GB VRAM^)
-echo   %CYAN%5%RESET%) microsoft/Phi-3-mini-4k-instruct    ^(very small -- ~8 GB VRAM^)
-echo   %CYAN%6%RESET%) Custom model ^(enter HuggingFace ID^)
+echo Choose a model for vLLM:
+echo   1) meta-llama/Llama-3.2-3B-Instruct   ^(small, fast -- ~6 GB VRAM^)
+echo   2) meta-llama/Meta-Llama-3.1-8B-Instruct  ^(balanced -- ~16 GB VRAM^)
+echo   3) mistralai/Mistral-7B-Instruct-v0.3  ^(versatile -- ~14 GB VRAM^)
+echo   4) Qwen/Qwen2.5-7B-Instruct            ^(multilingual -- ~14 GB VRAM^)
+echo   5) microsoft/Phi-3-mini-4k-instruct    ^(very small -- ~8 GB VRAM^)
+echo   6) Custom model ^(enter HuggingFace ID^)
 echo.
 set /p VLLM_MODEL_IDX="Enter number [1]: "
 if "%VLLM_MODEL_IDX%"=="" set VLLM_MODEL_IDX=1
@@ -178,7 +170,7 @@ if "%VLLM_MODEL_IDX%"=="6" (
 set /p VLLM_PORT="vLLM server port [8000]: "
 if "%VLLM_PORT%"=="" set VLLM_PORT=8000
 
-echo %YELLOW%  Note: Some models require a HuggingFace token.%RESET%
+echo   Note: Some models require a HuggingFace token.
 set /p HF_TOKEN="HuggingFace token (leave blank to skip): "
 
 set BACKEND_URL=http://localhost:!VLLM_PORT!/v1
@@ -192,44 +184,44 @@ set BACKEND_API_KEY=EMPTY
     echo set PORT=!VLLM_PORT!
     if not "!HF_TOKEN!"=="" echo set HUGGING_FACE_HUB_TOKEN=!HF_TOKEN!
     echo echo Starting vLLM server for %%MODEL%% on port %%PORT%%...
-    echo %PY_CMD% -m vllm.entrypoints.openai.api_server --model "%%MODEL%%" --port %%PORT%% --trust-remote-code
+    echo !PY_CMD! -m vllm.entrypoints.openai.api_server --model "%%MODEL%%" --port %%PORT%% --trust-remote-code
 ) > start-vllm.bat
-echo %GREEN%  OK%RESET% Generated start-vllm.bat
+echo   OK  Generated start-vllm.bat
 echo.
 goto :eof
 
 :: -- llama.cpp -----------------------------------------------------------------
 :install_llamacpp
 echo.
-echo %CYAN%[Tanuki]%RESET% Installing llama.cpp Python server...
+echo [Tanuki] Installing llama.cpp Python server...
 echo.
-echo %BOLD%Installation method:%RESET%
-echo   %CYAN%1%RESET%) pip install llama-cpp-python[server]  ^(recommended^)
-echo   %CYAN%2%RESET%) I already have llama-cpp-python installed
+echo Installation method:
+echo   1) pip install llama-cpp-python[server]  ^(recommended^)
+echo   2) I already have llama-cpp-python installed
 echo.
 set /p LLAMA_INST="Enter number [1]: "
 if "%LLAMA_INST%"=="" set LLAMA_INST=1
 
 if "%LLAMA_INST%"=="1" (
-    echo %YELLOW%  For GPU acceleration, set CMAKE_ARGS before installing:%RESET%
-    echo %YELLOW%    NVIDIA:  set CMAKE_ARGS=-DGGML_CUDA=on%RESET%
-    echo %YELLOW%    AMD:     set CMAKE_ARGS=-DGGML_HIPBLAS=on%RESET%
+    echo   For GPU acceleration, set CMAKE_ARGS before installing:
+    echo     NVIDIA:  set CMAKE_ARGS=-DGGML_CUDA=on
+    echo     AMD:     set CMAKE_ARGS=-DGGML_HIPBLAS=on
     echo.
     %PY_CMD% -m pip install "llama-cpp-python[server]"
     if errorlevel 1 (
-        echo %RED%  X  llama-cpp-python installation failed.%RESET%
+        echo   X  llama-cpp-python installation failed.
         pause
         exit /b 1
     )
-    echo %GREEN%  OK%RESET% llama-cpp-python installed
+    echo   OK  llama-cpp-python installed
 )
 echo.
 
-echo %BOLD%Choose a model:%RESET%
-echo   %CYAN%1%RESET%) Llama-3.2-3B-Instruct Q4_K_M  ^(~2 GB download^)
-echo   %CYAN%2%RESET%) Mistral-7B-Instruct-v0.2 Q4_K_M ^(~4 GB download^)
-echo   %CYAN%3%RESET%) Phi-3-mini-4k-instruct Q4_K_M  ^(~2.2 GB download^)
-echo   %CYAN%4%RESET%) Custom GGUF ^(enter HuggingFace repo, URL, or local path^)
+echo Choose a model:
+echo   1) Llama-3.2-3B-Instruct Q4_K_M  ^(~2 GB download^)
+echo   2) Mistral-7B-Instruct-v0.2 Q4_K_M ^(~4 GB download^)
+echo   3) Phi-3-mini-4k-instruct Q4_K_M  ^(~2.2 GB download^)
+echo   4) Custom GGUF ^(enter HuggingFace repo, URL, or local path^)
 echo.
 set /p LLAMA_MODEL_IDX="Enter number [1]: "
 if "%LLAMA_MODEL_IDX%"=="" set LLAMA_MODEL_IDX=1
@@ -278,17 +270,17 @@ if not exist models mkdir models
 echo !GGUF_URL! | findstr /C:"http" >nul 2>&1
 if not errorlevel 1 (
     if not exist "models\!GGUF_FILE!" (
-        echo %CYAN%[Tanuki]%RESET% Downloading !GGUF_FILE!...
+        echo [Tanuki] Downloading !GGUF_FILE!...
         where curl >nul 2>&1
         if not errorlevel 1 (
             curl -L --progress-bar -o "models\!GGUF_FILE!" "!GGUF_URL!"
         ) else (
-            echo %YELLOW%  curl not found -- please manually download:%RESET%
-            echo %YELLOW%    !GGUF_URL!%RESET%
-            echo %YELLOW%    -^> models\!GGUF_FILE!%RESET%
+            echo   curl not found -- please manually download:
+            echo     !GGUF_URL!
+            echo     -^> models\!GGUF_FILE!
         )
     ) else (
-        echo %GREEN%  OK%RESET% Model already downloaded: models\!GGUF_FILE!
+        echo   OK  Model already downloaded: models\!GGUF_FILE!
     )
     set GGUF_FILE=models\!GGUF_FILE!
 )
@@ -310,22 +302,22 @@ set BACKEND_API_KEY=EMPTY
     echo set PORT=!LLAMA_PORT!
     echo set CTX=!LLAMA_CTX!
     echo echo Starting llama.cpp server on port %%PORT%%...
-    echo %PY_CMD% -m llama_cpp.server --model "%%MODEL_PATH%%" --port %%PORT%% --n_ctx %%CTX%%
+    echo !PY_CMD! -m llama_cpp.server --model "%%MODEL_PATH%%" --port %%PORT%% --n_ctx %%CTX%%
 ) > start-llamacpp.bat
-echo %GREEN%  OK%RESET% Generated start-llamacpp.bat
+echo   OK  Generated start-llamacpp.bat
 echo.
 goto :eof
 
 :: -- External API --------------------------------------------------------------
 :configure_external_api
 echo.
-echo %BOLD%Choose API provider:%RESET%
-echo   %CYAN%1%RESET%) OpenAI          ^(https://api.openai.com/v1^)
-echo   %CYAN%2%RESET%) Ollama          ^(http://localhost:11434/v1^)
-echo   %CYAN%3%RESET%) LM Studio       ^(http://localhost:1234/v1^)
-echo   %CYAN%4%RESET%) Together AI     ^(https://api.together.xyz/v1^)
-echo   %CYAN%5%RESET%) Groq            ^(https://api.groq.com/openai/v1^)
-echo   %CYAN%6%RESET%) Custom URL
+echo Choose API provider:
+echo   1) OpenAI          ^(https://api.openai.com/v1^)
+echo   2) Ollama          ^(http://localhost:11434/v1^)
+echo   3) LM Studio       ^(http://localhost:1234/v1^)
+echo   4) Together AI     ^(https://api.together.xyz/v1^)
+echo   5) Groq            ^(https://api.groq.com/openai/v1^)
+echo   6) Custom URL
 echo.
 set /p API_PROVIDER="Enter number [1]: "
 if "%API_PROVIDER%"=="" set API_PROVIDER=1
@@ -342,13 +334,13 @@ if "%API_PROVIDER%"=="6" (
 set /p BACKEND_API_KEY="API Key (leave blank if not needed): "
 
 echo.
-echo %BOLD%Choose a model:%RESET%
-echo   %CYAN%1%RESET%) gpt-4o-mini
-echo   %CYAN%2%RESET%) gpt-4o
-echo   %CYAN%3%RESET%) gpt-4-turbo
-echo   %CYAN%4%RESET%) llama3
-echo   %CYAN%5%RESET%) mistral
-echo   %CYAN%6%RESET%) Custom model name
+echo Choose a model:
+echo   1) gpt-4o-mini
+echo   2) gpt-4o
+echo   3) gpt-4-turbo
+echo   4) llama3
+echo   5) mistral
+echo   6) Custom model name
 echo.
 set /p MODEL_IDX="Enter number [1]: "
 if "%MODEL_IDX%"=="" set MODEL_IDX=1
@@ -366,11 +358,11 @@ goto :eof
 
 :: -- Credentials ---------------------------------------------------------------
 :configure_credentials
-echo %CYAN%[Tanuki]%RESET% Configuring application credentials...
+echo [Tanuki] Configuring application credentials...
 echo.
 set /p ADMIN_USER="Admin username [admin]: "
 if "%ADMIN_USER%"=="" set ADMIN_USER=admin
-echo %YELLOW%  Note: password characters will be hidden.%RESET%
+echo   Note: password characters will be hidden.
 for /f "delims=" %%p in ('powershell -Command "$p = Read-Host -AsSecureString 'Admin password'; [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($p))"') do set ADMIN_PASS=%%p
 echo.
 set /p STUDENT_USER="Student username [student]: "
@@ -381,7 +373,7 @@ goto :eof
 
 :: -- Write .env.local ----------------------------------------------------------
 :write_env
-echo %CYAN%[Tanuki]%RESET% Writing .env.local...
+echo [Tanuki] Writing .env.local...
 
 :: Generate a random hex secret using PowerShell
 for /f %%i in ('powershell -Command "[System.Convert]::ToHexString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))"') do set SESSION_SECRET=%%i
@@ -406,18 +398,18 @@ if not "!BACKEND_URL!"=="" (
     echo OPENAI_BASE_URL=!BACKEND_URL! >> .env.local
 )
 
-echo %GREEN%  OK%RESET% .env.local written
+echo   OK  .env.local written
 echo.
 goto :eof
 
 :: -- Summary -------------------------------------------------------------------
 :print_summary
 echo.
-echo %CYAN%------------------------------------------------------%RESET%
+echo --------------------------------------------------------
 echo.
-echo %GREEN%%BOLD%  Installation complete!%RESET%
+echo   Installation complete!
 echo.
-echo %BOLD%  Next steps:%RESET%
+echo   Next steps:
 echo.
 
 if exist start-vllm.bat (
@@ -460,7 +452,7 @@ echo   Open:     http://localhost:3000
 echo   Admin:    !ADMIN_USER! / ^(your password^)
 echo   Student:  !STUDENT_USER! / ^(your password^)
 echo.
-echo %CYAN%------------------------------------------------------%RESET%
+echo --------------------------------------------------------
 echo.
 pause
 goto :eof
