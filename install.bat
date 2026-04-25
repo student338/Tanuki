@@ -1,9 +1,9 @@
 @echo off
-:: ─────────────────────────────────────────────────────────────────────────────
-:: Tanuki Stories – Interactive Installer (Windows)
+:: -----------------------------------------------------------------------------
+:: Tanuki Stories - Interactive Installer (Windows)
 :: Supports: vLLM, llama.cpp (local), external OpenAI-compatible API, mock mode
 :: Usage:  install.bat
-:: ─────────────────────────────────────────────────────────────────────────────
+:: -----------------------------------------------------------------------------
 setlocal EnableDelayedExpansion
 title Tanuki Stories Installer
 
@@ -14,18 +14,18 @@ set "CYAN=[96m"
 set "BOLD=[1m"
 set "RESET=[0m"
 
-:: ── Banner ───────────────────────────────────────────────────────────────────
+:: -- Banner -------------------------------------------------------------------
 call :print_banner
 
-:: ── Prereq checks ────────────────────────────────────────────────────────────
+:: -- Prereq checks ------------------------------------------------------------
 call :check_prereqs
 
-:: ── npm install ──────────────────────────────────────────────────────────────
+:: -- npm install --------------------------------------------------------------
 call :run_npm_install
 
-:: ── AI backend selection ─────────────────────────────────────────────────────
+:: -- AI backend selection -----------------------------------------------------
 echo.
-echo %CYAN%──────────────────────────────────────────────────────%RESET%
+echo %CYAN%------------------------------------------------------%RESET%
 echo.
 echo %BOLD%How should Tanuki Stories connect to an AI model?%RESET%
 echo.
@@ -59,15 +59,15 @@ if "%BE_CHOICE%"=="1" (
     set BACKEND_API_KEY=
 )
 
-:: ── Credentials ──────────────────────────────────────────────────────────────
+:: -- Credentials --------------------------------------------------------------
 echo.
-echo %CYAN%──────────────────────────────────────────────────────%RESET%
+echo %CYAN%------------------------------------------------------%RESET%
 call :configure_credentials
 
-:: ── Write .env.local ─────────────────────────────────────────────────────────
+:: -- Write .env.local ---------------------------------------------------------
 call :write_env
 
-:: ── Summary ──────────────────────────────────────────────────────────────────
+:: -- Summary ------------------------------------------------------------------
 call :print_summary
 goto :eof
 
@@ -86,7 +86,7 @@ echo      ##  ##  ##  ##   ### ##    ## ##   ###
 echo      ##  ##  ##  ##    ##  ##   ##  ##  ## ##
 echo %RESET%
 echo   %BOLD%Tanuki Stories -- Interactive Installer (Windows)%RESET%
-echo   %CYAN%──────────────────────────────────────────────────────%RESET%
+echo   %CYAN%------------------------------------------------------%RESET%
 echo.
 goto :eof
 
@@ -140,7 +140,7 @@ echo %GREEN%  OK%RESET% npm install complete
 echo.
 goto :eof
 
-:: ── vLLM ─────────────────────────────────────────────────────────────────────
+:: -- vLLM ---------------------------------------------------------------------
 :install_vllm
 echo.
 echo %CYAN%[Tanuki]%RESET% Installing vLLM...
@@ -198,7 +198,7 @@ echo %GREEN%  OK%RESET% Generated start-vllm.bat
 echo.
 goto :eof
 
-:: ── llama.cpp ─────────────────────────────────────────────────────────────────
+:: -- llama.cpp -----------------------------------------------------------------
 :install_llamacpp
 echo.
 echo %CYAN%[Tanuki]%RESET% Installing llama.cpp Python server...
@@ -316,7 +316,7 @@ echo %GREEN%  OK%RESET% Generated start-llamacpp.bat
 echo.
 goto :eof
 
-:: ── External API ──────────────────────────────────────────────────────────────
+:: -- External API --------------------------------------------------------------
 :configure_external_api
 echo.
 echo %BOLD%Choose API provider:%RESET%
@@ -364,7 +364,7 @@ if "%MODEL_IDX%"=="6" (
 echo.
 goto :eof
 
-:: ── Credentials ───────────────────────────────────────────────────────────────
+:: -- Credentials ---------------------------------------------------------------
 :configure_credentials
 echo %CYAN%[Tanuki]%RESET% Configuring application credentials...
 echo.
@@ -379,7 +379,7 @@ for /f "delims=" %%p in ('powershell -Command "$p = Read-Host -AsSecureString 'S
 echo.
 goto :eof
 
-:: ── Write .env.local ──────────────────────────────────────────────────────────
+:: -- Write .env.local ----------------------------------------------------------
 :write_env
 echo %CYAN%[Tanuki]%RESET% Writing .env.local...
 
@@ -410,10 +410,10 @@ echo %GREEN%  OK%RESET% .env.local written
 echo.
 goto :eof
 
-:: ── Summary ───────────────────────────────────────────────────────────────────
+:: -- Summary -------------------------------------------------------------------
 :print_summary
 echo.
-echo %CYAN%──────────────────────────────────────────────────────%RESET%
+echo %CYAN%------------------------------------------------------%RESET%
 echo.
 echo %GREEN%%BOLD%  Installation complete!%RESET%
 echo.
@@ -460,7 +460,7 @@ echo   Open:     http://localhost:3000
 echo   Admin:    !ADMIN_USER! / ^(your password^)
 echo   Student:  !STUDENT_USER! / ^(your password^)
 echo.
-echo %CYAN%──────────────────────────────────────────────────────%RESET%
+echo %CYAN%------------------------------------------------------%RESET%
 echo.
 pause
 goto :eof
