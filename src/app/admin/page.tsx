@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import StoryCard from '@/components/StoryCard';
-import { Story, LockableField, StoryDefaults } from '@/lib/storage';
+import { Story, LockableField, StoryDefaults, ReadingLevel } from '@/lib/storage';
 
 const LOCKABLE_FIELDS: { key: LockableField; label: string }[] = [
   { key: 'chapterCount', label: 'Chapter count' },
@@ -21,6 +21,7 @@ interface UserConfig {
 
 interface StudentInfo {
   username: string;
+  readingLevel?: ReadingLevel;
 }
 
 export default function AdminPage() {
@@ -29,7 +30,6 @@ export default function AdminPage() {
   const [apiBaseUrl, setApiBaseUrl] = useState('');
   const [model, setModel] = useState('');
   const [localModelId, setLocalModelId] = useState('');
-  const [defaultReadingLevel, setDefaultReadingLevel] = useState<'simple' | 'intermediate' | 'advanced' | ''>('');
   const [userConfigs, setUserConfigs] = useState<Record<string, UserConfig>>({});
   const [stories, setStories] = useState<Story[]>([]);
   const [saving, setSaving] = useState(false);
@@ -64,7 +64,6 @@ export default function AdminPage() {
     setApiBaseUrl(cfg.apiBaseUrl ?? '');
     setModel(cfg.model ?? '');
     setLocalModelId(cfg.localModelId ?? '');
-    setDefaultReadingLevel(cfg.defaultReadingLevel ?? '');
     setUserConfigs(cfg.userConfigs ?? {});
     setStories(Array.isArray(storiesData) ? storiesData : []);
   }, [router]);
@@ -89,7 +88,6 @@ export default function AdminPage() {
         apiBaseUrl: apiBaseUrl.trim() || undefined,
         model: model.trim() || undefined,
         localModelId: localModelId.trim() || undefined,
-        defaultReadingLevel: defaultReadingLevel || undefined,
         userConfigs,
       }),
     });
@@ -288,42 +286,6 @@ export default function AdminPage() {
           </div>
         </section>
 
-        {/* Reading Level */}
-        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <span>📖</span> Default Reading Level
-          </h2>
-          <p className="text-sm text-gray-400">
-            Set a global default reading complexity applied to all stories when not overridden per-student.
-          </p>
-          <div className="flex gap-2">
-            {(['', 'simple', 'intermediate', 'advanced'] as const).map((lvl) => (
-              <button
-                key={lvl}
-                type="button"
-                onClick={() => setDefaultReadingLevel(lvl)}
-                className={`flex-1 py-2 rounded-xl text-sm border transition-colors ${
-                  defaultReadingLevel === lvl
-                    ? 'bg-indigo-600 border-indigo-600 text-white'
-                    : 'border-white/20 text-gray-300 hover:bg-white/10'
-                }`}
-              >
-                {lvl === '' ? 'Not set' : lvl.charAt(0).toUpperCase() + lvl.slice(1)}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2 rounded-xl transition-colors disabled:opacity-50"
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-            {saved && <span className="text-green-400 text-sm">✓ Saved!</span>}
-          </div>
-        </section>
-
         {/* Student Management */}
         <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-6">
           <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -337,7 +299,14 @@ export default function AdminPage() {
               <ul className="space-y-2">
                 {students.map((s) => (
                   <li key={s.username} className="flex items-center justify-between bg-white/5 rounded-xl px-4 py-2 border border-white/10">
-                    <span className="text-sm">👤 {s.username}</span>
+                    <span className="text-sm flex items-center gap-2">
+                      👤 {s.username}
+                      {s.readingLevel && (
+                        <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full">
+                          {s.readingLevel}
+                        </span>
+                      )}
+                    </span>
                     <button
                       onClick={() => handleDeleteStudent(s.username)}
                       className="text-xs text-red-400 hover:text-red-300 transition-colors border border-red-400/30 px-3 py-1 rounded-lg hover:bg-red-500/10"
@@ -381,7 +350,7 @@ export default function AdminPage() {
           <div>
             <h3 className="text-sm font-medium text-gray-300 mb-2">Import from CSV</h3>
             <p className="text-xs text-gray-500 mb-2">
-              CSV format: <code className="bg-white/10 px-1 rounded">username,password</code> — one student per line, optional header row.
+              CSV format: <code className="bg-white/10 px-1 rounded">username,password,reading_level</code> — one student per line, optional header row. Reading level values: <code className="bg-white/10 px-1 rounded">Elementary</code>, <code className="bg-white/10 px-1 rounded">Middle School</code>, <code className="bg-white/10 px-1 rounded">High School</code>, <code className="bg-white/10 px-1 rounded">Adult</code>.
             </p>
             <div className="flex items-center gap-3 mb-2">
               <input
@@ -396,7 +365,7 @@ export default function AdminPage() {
               value={csvText}
               onChange={(e) => setCsvText(e.target.value)}
               rows={4}
-              placeholder={"username,password\nalice,pass123\nbob,pass456"}
+              placeholder={"username,password,reading_level\nalice,pass123,Elementary\nbob,pass456,Middle School"}
               className="w-full bg-white/5 border border-white/20 rounded-xl p-4 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500 font-mono"
             />
             <button

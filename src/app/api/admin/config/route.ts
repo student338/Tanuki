@@ -46,12 +46,6 @@ export async function POST(req: NextRequest) {
       ? body.userConfigs
       : undefined;
   }
-  if ('defaultReadingLevel' in body) {
-    updated.defaultReadingLevel =
-      ['simple', 'intermediate', 'advanced'].includes(body.defaultReadingLevel)
-        ? body.defaultReadingLevel
-        : undefined;
-  }
 
   saveConfig(updated);
   return NextResponse.json({ ok: true });

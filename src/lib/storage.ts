@@ -46,11 +46,6 @@ export interface Config {
    * Examples: "facebook/opt-125m", "/data/models/my-llm"
    */
   localModelId?: string;
-  /**
-   * Global default reading complexity level applied to all stories unless
-   * overridden per-student.  Configurable at install time.
-   */
-  defaultReadingLevel?: 'simple' | 'intermediate' | 'advanced';
   /** Per-student configuration set by admins. */
   userConfigs?: Record<string, UserConfig>;
 }
@@ -60,6 +55,7 @@ export interface StoryOptions {
   title?: string;
   chapterCount?: number;
   readingComplexity?: 'simple' | 'intermediate' | 'advanced';
+  readingLevel?: 'Elementary' | 'Middle School' | 'High School' | 'Adult';
   vocabularyComplexity?: 'basic' | 'intermediate' | 'advanced';
   genre?: string;
   plot?: string;
@@ -130,6 +126,8 @@ export function updateStory(id: string, content: string): Story | null {
 
 // ── Stored student users ─────────────────────────────────────────────────────
 
+export type ReadingLevel = 'Elementary' | 'Middle School' | 'High School' | 'Adult';
+
 export interface StoredUser {
   username: string;
   /**
@@ -139,6 +137,7 @@ export interface StoredUser {
    */
   password: string;
   role: 'student' | 'admin';
+  readingLevel?: ReadingLevel;
 }
 
 export function getStoredUsers(): StoredUser[] {
@@ -183,6 +182,8 @@ export function deleteStoredUser(username: string): boolean {
  * Note: commas within usernames or passwords are not supported.
  * Returns the number of users successfully imported.
  */
+const READING_LEVEL_VALUES: ReadingLevel[] = ['Elementary', 'Middle School', 'High School', 'Adult'];
+
 export function importStudentsFromCsv(csv: string): number {
   const lines = csv
     .split(/\r?\n/)
@@ -191,9 +192,25 @@ export function importStudentsFromCsv(csv: string): number {
 
   if (lines.length === 0) return 0;
 
-  // Skip header row if present
-  const dataLines =
-    lines[0].toLowerCase().includes('username') ? lines.slice(1) : lines;
+  // Detect optional header row and locate column indices
+  const firstLineLower = lines[0].toLowerCase();
+  const hasHeader = firstLineLower.includes('username');
+  const dataLines = hasHeader ? lines.slice(1) : lines;
+
+  // Determine column positions from header (defaults: username=0, password=1, reading_level=2)
+  let usernameIdx = 0;
+  let passwordIdx = 1;
+  let readingLevelIdx = 2;
+
+  if (hasHeader) {
+    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const uIdx = headers.indexOf('username');
+    const pIdx = headers.indexOf('password');
+    const rlIdx = headers.indexOf('reading_level');
+    if (uIdx !== -1) usernameIdx = uIdx;
+    if (pIdx !== -1) passwordIdx = pIdx;
+    readingLevelIdx = rlIdx; // -1 means column absent
+  }
 
   const users = getStoredUsers();
   let count = 0;
@@ -201,12 +218,17 @@ export function importStudentsFromCsv(csv: string): number {
   for (const line of dataLines) {
     const parts = line.split(',');
     if (parts.length < 2) continue;
-    const username = parts[0].trim();
-    const password = parts[1].trim();
+    const username = parts[usernameIdx]?.trim();
+    const password = parts[passwordIdx]?.trim();
     if (!username || !password) continue;
 
+    const rawLevel = readingLevelIdx >= 0 ? parts[readingLevelIdx]?.trim() : undefined;
+    const readingLevel = READING_LEVEL_VALUES.find(
+      (v) => v.toLowerCase() === rawLevel?.toLowerCase(),
+    );
+
     const idx = users.findIndex((u) => u.username === username);
-    const entry: StoredUser = { username, password, role: 'student' };
+    const entry: StoredUser = { username, password, role: 'student', ...(readingLevel ? { readingLevel } : {}) };
     if (idx !== -1) {
       users[idx] = entry;
     } else {
