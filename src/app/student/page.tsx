@@ -11,6 +11,7 @@ const GENRES = ['Fantasy', 'Adventure', 'Mystery', 'Sci-Fi', 'Romance', 'Horror'
 interface StoryOptions {
   title: string;
   chapterCount: number;
+  readingComplexity: 'simple' | 'intermediate' | 'advanced';
   vocabularyComplexity: 'basic' | 'intermediate' | 'advanced';
   genre: string;
   plot: string;
@@ -19,6 +20,7 @@ interface StoryOptions {
 const DEFAULT_OPTIONS: StoryOptions = {
   title: '',
   chapterCount: 1,
+  readingComplexity: 'intermediate',
   vocabularyComplexity: 'intermediate',
   genre: '',
   plot: '',
@@ -94,6 +96,7 @@ export default function StudentPage() {
         request,
         title: options.title || undefined,
         chapterCount: options.chapterCount,
+        readingComplexity: options.readingComplexity,
         vocabularyComplexity: options.vocabularyComplexity,
         genre: options.genre || undefined,
         plot: options.plot || undefined,
@@ -198,6 +201,30 @@ export default function StudentPage() {
                     disabled={isLocked('chapterCount')}
                     className="w-24 bg-black/5 border border-current/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50"
                   />
+                </div>
+
+                {/* Reading complexity */}
+                <div>
+                  <label className="block text-sm font-medium mb-1 opacity-80">
+                    Reading complexity {lockBadge('readingComplexity')}
+                  </label>
+                  <div className="flex gap-2">
+                    {(['simple', 'intermediate', 'advanced'] as const).map((lvl) => (
+                      <button
+                        key={lvl}
+                        type="button"
+                        disabled={isLocked('readingComplexity')}
+                        onClick={() => setOpt('readingComplexity', lvl)}
+                        className={`flex-1 py-1.5 rounded-xl text-sm border transition-colors disabled:opacity-50 ${
+                          options.readingComplexity === lvl
+                            ? 'bg-indigo-600 border-indigo-600 text-white'
+                            : 'border-current/20 opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        {lvl.charAt(0).toUpperCase() + lvl.slice(1)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Vocabulary complexity */}

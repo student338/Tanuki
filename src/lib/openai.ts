@@ -22,6 +22,9 @@ function buildUserMessage(userRequest: string, opts?: StoryOptions): string {
   if (opts?.chapterCount && opts.chapterCount > 1) {
     parts.push(`Number of chapters: ${opts.chapterCount}`);
   }
+  if (opts?.readingComplexity) {
+    parts.push(`Reading complexity level: ${opts.readingComplexity}`);
+  }
   if (opts?.vocabularyComplexity) {
     parts.push(`Vocabulary complexity: ${opts.vocabularyComplexity}`);
   }

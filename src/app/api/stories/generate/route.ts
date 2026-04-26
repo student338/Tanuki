@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
   const studentOptions: StoryOptions = {
     title: body.title,
     chapterCount: typeof body.chapterCount === 'number' ? body.chapterCount : undefined,
+    readingComplexity: body.readingComplexity,
     vocabularyComplexity: body.vocabularyComplexity,
     genre: body.genre,
     plot: body.plot,

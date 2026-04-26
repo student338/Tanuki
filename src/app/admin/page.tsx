@@ -285,42 +285,6 @@ export default function AdminPage() {
           </div>
         </section>
 
-        {/* Reading Level */}
-        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <span>📖</span> Default Reading Level
-          </h2>
-          <p className="text-sm text-gray-400">
-            Set a global default reading complexity applied to all stories when not overridden per-student.
-          </p>
-          <div className="flex gap-2">
-            {(['', 'simple', 'intermediate', 'advanced'] as const).map((lvl) => (
-              <button
-                key={lvl}
-                type="button"
-                onClick={() => setDefaultReadingLevel(lvl)}
-                className={`flex-1 py-2 rounded-xl text-sm border transition-colors ${
-                  defaultReadingLevel === lvl
-                    ? 'bg-indigo-600 border-indigo-600 text-white'
-                    : 'border-white/20 text-gray-300 hover:bg-white/10'
-                }`}
-              >
-                {lvl === '' ? 'Not set' : lvl.charAt(0).toUpperCase() + lvl.slice(1)}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2 rounded-xl transition-colors disabled:opacity-50"
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-            {saved && <span className="text-green-400 text-sm">✓ Saved!</span>}
-          </div>
-        </section>
-
         {/* Student Management */}
         <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-6">
           <h2 className="text-lg font-semibold flex items-center gap-2">

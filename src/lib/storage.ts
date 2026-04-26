@@ -16,10 +16,11 @@ function ensureDataDir() {
 }
 
 /** Fields the admin can lock so students cannot change them. */
-export type LockableField = 'chapterCount' | 'vocabularyComplexity' | 'genre';
+export type LockableField = 'chapterCount' | 'readingComplexity' | 'vocabularyComplexity' | 'genre';
 
 export interface StoryDefaults {
   chapterCount?: number;
+  readingComplexity?: 'simple' | 'intermediate' | 'advanced';
   vocabularyComplexity?: 'basic' | 'intermediate' | 'advanced';
   genre?: string;
 }
@@ -53,6 +54,7 @@ export interface Config {
 export interface StoryOptions {
   title?: string;
   chapterCount?: number;
+  readingComplexity?: 'simple' | 'intermediate' | 'advanced';
   vocabularyComplexity?: 'basic' | 'intermediate' | 'advanced';
   genre?: string;
   plot?: string;
