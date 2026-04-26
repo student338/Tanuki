@@ -16,11 +16,10 @@ function ensureDataDir() {
 }
 
 /** Fields the admin can lock so students cannot change them. */
-export type LockableField = 'chapterCount' | 'readingComplexity' | 'vocabularyComplexity' | 'genre';
+export type LockableField = 'chapterCount' | 'vocabularyComplexity' | 'genre';
 
 export interface StoryDefaults {
   chapterCount?: number;
-  readingComplexity?: 'simple' | 'intermediate' | 'advanced';
   vocabularyComplexity?: 'basic' | 'intermediate' | 'advanced';
   genre?: string;
 }
@@ -46,11 +45,6 @@ export interface Config {
    * Examples: "facebook/opt-125m", "/data/models/my-llm"
    */
   localModelId?: string;
-  /**
-   * Global default reading complexity level applied to all stories unless
-   * overridden per-student.  Configurable at install time.
-   */
-  defaultReadingLevel?: 'simple' | 'intermediate' | 'advanced';
   /** Per-student configuration set by admins. */
   userConfigs?: Record<string, UserConfig>;
 }
@@ -59,7 +53,6 @@ export interface Config {
 export interface StoryOptions {
   title?: string;
   chapterCount?: number;
-  readingComplexity?: 'simple' | 'intermediate' | 'advanced';
   vocabularyComplexity?: 'basic' | 'intermediate' | 'advanced';
   genre?: string;
   plot?: string;

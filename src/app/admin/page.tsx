@@ -29,7 +29,6 @@ export default function AdminPage() {
   const [apiBaseUrl, setApiBaseUrl] = useState('');
   const [model, setModel] = useState('');
   const [localModelId, setLocalModelId] = useState('');
-  const [defaultReadingLevel, setDefaultReadingLevel] = useState<'simple' | 'intermediate' | 'advanced' | ''>('');
   const [userConfigs, setUserConfigs] = useState<Record<string, UserConfig>>({});
   const [stories, setStories] = useState<Story[]>([]);
   const [saving, setSaving] = useState(false);
@@ -64,7 +63,6 @@ export default function AdminPage() {
     setApiBaseUrl(cfg.apiBaseUrl ?? '');
     setModel(cfg.model ?? '');
     setLocalModelId(cfg.localModelId ?? '');
-    setDefaultReadingLevel(cfg.defaultReadingLevel ?? '');
     setUserConfigs(cfg.userConfigs ?? {});
     setStories(Array.isArray(storiesData) ? storiesData : []);
   }, [router]);
@@ -89,7 +87,6 @@ export default function AdminPage() {
         apiBaseUrl: apiBaseUrl.trim() || undefined,
         model: model.trim() || undefined,
         localModelId: localModelId.trim() || undefined,
-        defaultReadingLevel: defaultReadingLevel || undefined,
         userConfigs,
       }),
     });
