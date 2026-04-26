@@ -42,8 +42,8 @@ export async function generateStory(options: GenerateOptions): Promise<string> {
   const userMessage = buildUserMessage(userRequest, storyOptions);
 
   const chapterCount = storyOptions?.chapterCount ?? 1;
-  // Rough token budget: ~300 words (~420 tokens) per chapter
-  const maxTokens = Math.min(4000, Math.max(600, chapterCount * 420));
+  // Allow unrestricted token output — ~420 tokens (~300 words) per chapter
+  const maxTokens = Math.max(600, chapterCount * 420);
 
   // ── Local .safetensors model (highest priority) ──────────────────────────
   if (localModelId) {

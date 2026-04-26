@@ -29,6 +29,12 @@ export async function POST(req: NextRequest) {
   const adminDefaults = userCfg?.defaults ?? {};
 
   const effectiveOptions: StoryOptions = { ...studentOptions };
+
+  // Apply global default reading level when the student hasn't specified one
+  if (!effectiveOptions.readingComplexity && config.defaultReadingLevel) {
+    effectiveOptions.readingComplexity = config.defaultReadingLevel;
+  }
+
   for (const field of lockedFields) {
     const adminVal = (adminDefaults as Record<string, unknown>)[field];
     if (adminVal !== undefined) {
