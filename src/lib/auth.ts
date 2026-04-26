@@ -48,15 +48,23 @@ function sign(data: string): string {
 export function validateCredentials(username: string, password: string): User | null {
   // Check env-based users first
   const envUser = ENV_USERS[username];
-  if (envUser && envUser.password === password) {
-    return { username, role: envUser.role };
+  if (envUser) {
+    const match = timingSafeEqual(
+      Buffer.from(password),
+      Buffer.from(envUser.password),
+    );
+    if (match) return { username, role: envUser.role };
   }
 
   // Check file-based users (data/users.json)
   try {
     const fileUser = getStoredUsers().find((u) => u.username === username);
-    if (fileUser && fileUser.password === password) {
-      return { username, role: fileUser.role };
+    if (fileUser) {
+      const match = timingSafeEqual(
+        Buffer.from(password),
+        Buffer.from(fileUser.password),
+      );
+      if (match) return { username, role: fileUser.role };
     }
   } catch {
     // If the file cannot be read (e.g. during build), fall through silently

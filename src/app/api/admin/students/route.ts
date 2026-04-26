@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     // Single student creation: { username, password }
     const { username, password } = body as { username?: string; password?: string };
     if (!username?.trim() || !password?.trim()) {
-      return NextResponse.json({ error: 'username and password are required' }, { status: 400 });
+      return NextResponse.json({ error: 'Username and password are required' }, { status: 400 });
     }
     addStoredUser({ username: username.trim(), password: password.trim(), role: 'student' });
     return NextResponse.json({ ok: true });

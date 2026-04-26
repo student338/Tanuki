@@ -435,12 +435,16 @@ import_students_csv() {
 
   mkdir -p data
 
-  # Parse CSV and write data/users.json
+  # Parse CSV and write data/users.json.
   # Supports an optional header row (containing the word "username").
-  local tmp_json
-  tmp_json=$(node - "$csv_path" <<'NODEEOF'
+  # Note: commas in usernames or passwords are not supported.
+  local count_file
+  count_file=$(mktemp)
+
+  node - "$csv_path" "$count_file" <<'NODEEOF'
 const fs = require('fs');
 const filePath = process.argv[2];
+const countFile = process.argv[3];
 const lines = fs.readFileSync(filePath, 'utf8')
   .split(/\r?\n/)
   .map(l => l.trim())
@@ -449,14 +453,14 @@ const lines = fs.readFileSync(filePath, 'utf8')
 // Skip header row if present
 const dataLines = lines[0].toLowerCase().includes('username') ? lines.slice(1) : lines;
 
-const users = [];
+const newUsers = [];
 for (const line of dataLines) {
   const parts = line.split(',');
   if (parts.length < 2) continue;
   const username = parts[0].trim();
   const password = parts[1].trim();
   if (!username || !password) continue;
-  users.push({ username, password, role: 'student' });
+  newUsers.push({ username, password, role: 'student' });
 }
 
 // Merge with existing users.json if present
@@ -464,25 +468,19 @@ let existing = [];
 try {
   existing = JSON.parse(fs.readFileSync('data/users.json', 'utf8'));
 } catch {}
-for (const u of users) {
+for (const u of newUsers) {
   const idx = existing.findIndex(e => e.username === u.username);
-  if (idx !== -1) {
-    existing[idx] = u;
-  } else {
-    existing.push(u);
-  }
+  if (idx !== -1) { existing[idx] = u; } else { existing.push(u); }
 }
 
-console.log(JSON.stringify(existing, null, 2));
-process.stdout.write('\x00' + users.length);
+fs.writeFileSync('data/users.json', JSON.stringify(existing, null, 2));
+fs.writeFileSync(countFile, String(newUsers.length));
 NODEEOF
-  )
 
-  # Extract count from the NUL-separated suffix
-  local count="${tmp_json##*$'\x00'}"
-  local json_body="${tmp_json%%$'\x00'*}"
+  local count
+  count=$(cat "$count_file")
+  rm -f "$count_file"
 
-  echo "$json_body" > data/users.json
   ok "Imported ${count} student(s) → data/users.json"
   echo
 }

@@ -132,6 +132,11 @@ export function updateStory(id: string, content: string): Story | null {
 
 export interface StoredUser {
   username: string;
+  /**
+   * Password stored in plain text for simplicity, consistent with the existing
+   * env-var-based credentials.  For production deployments, restrict access to
+   * data/users.json via filesystem permissions.
+   */
   password: string;
   role: 'student' | 'admin';
 }
@@ -175,6 +180,7 @@ export function deleteStoredUser(username: string): boolean {
  * Import students from a CSV string.  The CSV may have an optional header row
  * (detected by the first row containing the word "username").  Each data row
  * must have at least two comma-separated fields: username and password.
+ * Note: commas within usernames or passwords are not supported.
  * Returns the number of users successfully imported.
  */
 export function importStudentsFromCsv(csv: string): number {
