@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import StoryCard from '@/components/StoryCard';
 import { Story, LockableField, StoryDefaults } from '@/lib/storage';
@@ -19,19 +19,38 @@ interface UserConfig {
   defaults?: StoryDefaults;
 }
 
+interface StudentInfo {
+  username: string;
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [systemPrompt, setSystemPrompt] = useState('');
   const [apiBaseUrl, setApiBaseUrl] = useState('');
   const [model, setModel] = useState('');
   const [localModelId, setLocalModelId] = useState('');
+  const [defaultReadingLevel, setDefaultReadingLevel] = useState<'simple' | 'intermediate' | 'advanced' | ''>('');
   const [userConfigs, setUserConfigs] = useState<Record<string, UserConfig>>({});
   const [stories, setStories] = useState<Story[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // Student username currently being configured
-  const [studentUsername] = useState(process.env.NEXT_PUBLIC_STUDENT_USERNAME ?? 'student');
+  // Student management
+  const [students, setStudents] = useState<StudentInfo[]>([]);
+  const [newStudentUsername, setNewStudentUsername] = useState('');
+  const [newStudentPassword, setNewStudentPassword] = useState('');
+  const [studentError, setStudentError] = useState('');
+  const [studentSuccess, setStudentSuccess] = useState('');
+  const [csvText, setCsvText] = useState('');
+  const [csvImporting, setCsvImporting] = useState(false);
+  const csvFileRef = useRef<HTMLInputElement>(null);
+
+  const loadStudents = useCallback(async () => {
+    const res = await fetch('/api/admin/students');
+    if (!res.ok) return;
+    const data = await res.json();
+    setStudents(Array.isArray(data) ? data : []);
+  }, []);
 
   const load = useCallback(async () => {
     const [cfgRes, storyRes] = await Promise.all([
@@ -45,11 +64,15 @@ export default function AdminPage() {
     setApiBaseUrl(cfg.apiBaseUrl ?? '');
     setModel(cfg.model ?? '');
     setLocalModelId(cfg.localModelId ?? '');
+    setDefaultReadingLevel(cfg.defaultReadingLevel ?? '');
     setUserConfigs(cfg.userConfigs ?? {});
     setStories(Array.isArray(storiesData) ? storiesData : []);
   }, [router]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    loadStudents();
+  }, [load, loadStudents]);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -66,6 +89,7 @@ export default function AdminPage() {
         apiBaseUrl: apiBaseUrl.trim() || undefined,
         model: model.trim() || undefined,
         localModelId: localModelId.trim() || undefined,
+        defaultReadingLevel: defaultReadingLevel || undefined,
         userConfigs,
       }),
     });
@@ -102,10 +126,73 @@ export default function AdminPage() {
     }));
   }
 
-  // Collect all unique student usernames from stories + the default student account
+  // Collect all unique student usernames from file-based students + stories
+  const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME ?? 'admin';
   const studentUsernames = Array.from(
-    new Set([studentUsername, ...stories.map((s) => s.username)]),
-  ).filter((u) => u !== (process.env.NEXT_PUBLIC_ADMIN_USERNAME ?? 'admin'));
+    new Set([
+      ...students.map((s) => s.username),
+      ...stories.map((s) => s.username),
+    ]),
+  ).filter((u) => u !== adminUsername);
+
+  // ── Student management handlers ─────────────────────────────────────────────
+  async function handleAddStudent(e: React.FormEvent) {
+    e.preventDefault();
+    setStudentError('');
+    setStudentSuccess('');
+    if (!newStudentUsername.trim() || !newStudentPassword.trim()) {
+      setStudentError('Username and password are required.');
+      return;
+    }
+    const res = await fetch('/api/admin/students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: newStudentUsername.trim(), password: newStudentPassword.trim() }),
+    });
+    if (!res.ok) {
+      const d = await res.json();
+      setStudentError(d.error ?? 'Failed to add student.');
+      return;
+    }
+    setNewStudentUsername('');
+    setNewStudentPassword('');
+    setStudentSuccess('Student added.');
+    setTimeout(() => setStudentSuccess(''), 2000);
+    loadStudents();
+  }
+
+  async function handleDeleteStudent(username: string) {
+    if (!confirm(`Delete student "${username}"?`)) return;
+    await fetch(`/api/admin/students/${encodeURIComponent(username)}`, { method: 'DELETE' });
+    loadStudents();
+  }
+
+  async function handleCsvImport() {
+    if (!csvText.trim()) return;
+    setCsvImporting(true);
+    setStudentError('');
+    setStudentSuccess('');
+    const res = await fetch('/api/admin/students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ csv: csvText }),
+    });
+    const d = await res.json();
+    setCsvImporting(false);
+    if (!res.ok) { setStudentError(d.error ?? 'Import failed.'); return; }
+    setCsvText('');
+    setStudentSuccess(`Imported ${d.imported} student(s).`);
+    setTimeout(() => setStudentSuccess(''), 3000);
+    loadStudents();
+  }
+
+  function handleCsvFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setCsvText((ev.target?.result as string) ?? '');
+    reader.readAsText(file);
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-zinc-900 text-white">
@@ -201,6 +288,130 @@ export default function AdminPage() {
           </div>
         </section>
 
+        {/* Reading Level */}
+        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <span>📖</span> Default Reading Level
+          </h2>
+          <p className="text-sm text-gray-400">
+            Set a global default reading complexity applied to all stories when not overridden per-student.
+          </p>
+          <div className="flex gap-2">
+            {(['', 'simple', 'intermediate', 'advanced'] as const).map((lvl) => (
+              <button
+                key={lvl}
+                type="button"
+                onClick={() => setDefaultReadingLevel(lvl)}
+                className={`flex-1 py-2 rounded-xl text-sm border transition-colors ${
+                  defaultReadingLevel === lvl
+                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                    : 'border-white/20 text-gray-300 hover:bg-white/10'
+                }`}
+              >
+                {lvl === '' ? 'Not set' : lvl.charAt(0).toUpperCase() + lvl.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2 rounded-xl transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+            {saved && <span className="text-green-400 text-sm">✓ Saved!</span>}
+          </div>
+        </section>
+
+        {/* Student Management */}
+        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-6">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <span>👥</span> Student Management
+          </h2>
+
+          {/* Existing students */}
+          {students.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-300 mb-2">Enrolled students ({students.length})</h3>
+              <ul className="space-y-2">
+                {students.map((s) => (
+                  <li key={s.username} className="flex items-center justify-between bg-white/5 rounded-xl px-4 py-2 border border-white/10">
+                    <span className="text-sm">👤 {s.username}</span>
+                    <button
+                      onClick={() => handleDeleteStudent(s.username)}
+                      className="text-xs text-red-400 hover:text-red-300 transition-colors border border-red-400/30 px-3 py-1 rounded-lg hover:bg-red-500/10"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Add single student */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-300 mb-2">Add a student</h3>
+            <form onSubmit={handleAddStudent} className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                value={newStudentUsername}
+                onChange={(e) => setNewStudentUsername(e.target.value)}
+                placeholder="Username"
+                className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+              />
+              <input
+                type="password"
+                value={newStudentPassword}
+                onChange={(e) => setNewStudentPassword(e.target.value)}
+                placeholder="Password"
+                className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+              />
+              <button
+                type="submit"
+                className="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded-xl transition-colors whitespace-nowrap"
+              >
+                Add Student
+              </button>
+            </form>
+          </div>
+
+          {/* CSV import */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-300 mb-2">Import from CSV</h3>
+            <p className="text-xs text-gray-500 mb-2">
+              CSV format: <code className="bg-white/10 px-1 rounded">username,password</code> — one student per line, optional header row.
+            </p>
+            <div className="flex items-center gap-3 mb-2">
+              <input
+                ref={csvFileRef}
+                type="file"
+                accept=".csv,text/csv,text/plain"
+                onChange={handleCsvFileChange}
+                className="text-sm text-gray-400 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border file:border-white/20 file:bg-white/5 file:text-gray-300 file:text-xs hover:file:bg-white/10"
+              />
+            </div>
+            <textarea
+              value={csvText}
+              onChange={(e) => setCsvText(e.target.value)}
+              rows={4}
+              placeholder={"username,password\nalice,pass123\nbob,pass456"}
+              className="w-full bg-white/5 border border-white/20 rounded-xl p-4 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500 font-mono"
+            />
+            <button
+              onClick={handleCsvImport}
+              disabled={csvImporting || !csvText.trim()}
+              className="mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2 rounded-xl transition-colors disabled:opacity-50"
+            >
+              {csvImporting ? 'Importing...' : 'Import CSV'}
+            </button>
+          </div>
+
+          {studentError && <p className="text-red-400 text-sm">{studentError}</p>}
+          {studentSuccess && <p className="text-green-400 text-sm">✓ {studentSuccess}</p>}
+        </section>
+
         {/* Per-user locked fields */}
         <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-6">
           <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -242,7 +453,6 @@ export default function AdminPage() {
                               <input
                                 type="number"
                                 min={1}
-                                max={10}
                                 value={(defaults.chapterCount as number | undefined) ?? 1}
                                 onChange={(e) => setDefaultValue(username, key, Number(e.target.value))}
                                 className="w-16 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm text-center"
@@ -330,3 +540,4 @@ export default function AdminPage() {
     </div>
   );
 }
+

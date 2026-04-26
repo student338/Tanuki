@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { createHmac, timingSafeEqual } from 'crypto';
+import { getStoredUsers } from './storage';
 
 export interface User {
   username: string;
@@ -8,16 +9,25 @@ export interface User {
 
 const COOKIE_NAME = 'tanuki_session';
 
-// Demo credentials — override via ADMIN_PASSWORD / STUDENT_PASSWORD env vars
-const USERS: Record<string, { password: string; role: 'admin' | 'student' }> = {
+// Env-based users (admin + optional legacy student) — always present
+const ENV_USERS: Record<string, { password: string; role: 'admin' | 'student' }> = {
   [process.env.ADMIN_USERNAME ?? 'admin']: {
     password: process.env.ADMIN_PASSWORD ?? 'admin123',
     role: 'admin',
   },
-  [process.env.STUDENT_USERNAME ?? 'student']: {
-    password: process.env.STUDENT_PASSWORD ?? 'student123',
-    role: 'student',
-  },
+  ...(process.env.STUDENT_USERNAME
+    ? {
+        [process.env.STUDENT_USERNAME]: {
+          password: process.env.STUDENT_PASSWORD ?? 'student123',
+          role: 'student',
+        },
+      }
+    : {
+        student: {
+          password: process.env.STUDENT_PASSWORD ?? 'student123',
+          role: 'student',
+        },
+      }),
 };
 
 function getSecret(): string {
@@ -36,9 +46,31 @@ function sign(data: string): string {
 }
 
 export function validateCredentials(username: string, password: string): User | null {
-  const user = USERS[username];
-  if (!user || user.password !== password) return null;
-  return { username, role: user.role };
+  // Check env-based users first
+  const envUser = ENV_USERS[username];
+  if (envUser) {
+    const match = timingSafeEqual(
+      Buffer.from(password),
+      Buffer.from(envUser.password),
+    );
+    if (match) return { username, role: envUser.role };
+  }
+
+  // Check file-based users (data/users.json)
+  try {
+    const fileUser = getStoredUsers().find((u) => u.username === username);
+    if (fileUser) {
+      const match = timingSafeEqual(
+        Buffer.from(password),
+        Buffer.from(fileUser.password),
+      );
+      if (match) return { username, role: fileUser.role };
+    }
+  } catch {
+    // If the file cannot be read (e.g. during build), fall through silently
+  }
+
+  return null;
 }
 
 export function createSessionToken(user: User): string {
