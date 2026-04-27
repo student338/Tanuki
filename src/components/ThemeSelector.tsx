@@ -27,7 +27,6 @@ export const themes: { id: Theme; label: string; icon: string }[] = [
 ];
 
 export default function ThemeSelector({ current, onChange }: ThemeSelectorProps) {
-  const selected = themes.find((t) => t.id === current);
   return (
     <div className="relative">
       <select
@@ -46,12 +45,6 @@ export default function ThemeSelector({ current, onChange }: ThemeSelectorProps)
       <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs opacity-60">
         ▾
       </span>
-      {/* Selected theme preview label */}
-      {selected && (
-        <span className="mt-1 block text-center text-xs opacity-50">
-          {selected.icon} {selected.label}
-        </span>
-      )}
     </div>
   );
 }
