@@ -192,7 +192,7 @@ export default function AdminPage() {
   function handleAddClassroom() {
     const name = newClassroomName.trim();
     if (!name) return;
-    const id = Math.random().toString(36).slice(2, 10);
+    const id = crypto.randomUUID();
     setClassrooms((prev) => ({ ...prev, [id]: { name, members: [] } }));
     setNewClassroomName('');
   }
@@ -969,7 +969,7 @@ function MaturitySlider({
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full accent-purple-500 cursor-pointer"
       />
-      <div className="flex mt-1" style={{ justifyContent: ticks.length > 1 ? 'space-between' : 'flex-start' }}>
+      <div className={`flex mt-1 ${ticks.length > 1 ? 'justify-between' : 'justify-start'}`}>
         {ticks.map((n) => (
           <button
             key={n}

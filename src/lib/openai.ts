@@ -1,4 +1,5 @@
 import type { StoryOptions } from './storage';
+import { MATURITY_LEVEL_DEFAULT } from './safety';
 
 /**
  * Admin-controlled content maturity descriptions injected into the system
@@ -74,7 +75,7 @@ export async function generateStory(options: GenerateOptions): Promise<string> {
 
   const level = contentMaturityLevel !== undefined && contentMaturityLevel >= 1 && contentMaturityLevel <= 6
     ? contentMaturityLevel
-    : 2;
+    : MATURITY_LEVEL_DEFAULT;
   const maturityInstruction = MATURITY_INSTRUCTIONS[level]; // undefined for level 6 (None)
   if (maturityInstruction) {
     promptParts.push(`Content safety: ${maturityInstruction}`);
