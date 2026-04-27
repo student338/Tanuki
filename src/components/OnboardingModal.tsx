@@ -158,21 +158,22 @@ export default function OnboardingModal({
             {/* Theme */}
             <div>
               <h3 className="font-semibold text-lg mb-2">🎨 Choose a theme</h3>
-              <div className="flex flex-wrap gap-2">
-                {THEME_OPTIONS.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setTheme(t.id)}
-                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all border ${
-                      theme === t.id
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
-                        : 'bg-white/10 border-white/30 hover:bg-white/20'
-                    }`}
-                  >
-                    {t.icon} {t.label}
-                  </button>
-                ))}
+              <div className="relative">
+                <select
+                  value={theme}
+                  onChange={(e) => setTheme(e.target.value)}
+                  className="appearance-none w-full bg-white/10 border border-white/20 rounded-xl pl-4 pr-10 py-2.5 text-sm font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400 hover:bg-white/20 transition-colors"
+                  aria-label="Select theme"
+                >
+                  {THEME_OPTIONS.map((t) => (
+                    <option key={t.id} value={t.id} className="bg-gray-900 text-white">
+                      {t.icon} {t.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs opacity-60">
+                  ▾
+                </span>
               </div>
             </div>
 

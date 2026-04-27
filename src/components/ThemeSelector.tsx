@@ -27,21 +27,31 @@ export const themes: { id: Theme; label: string; icon: string }[] = [
 ];
 
 export default function ThemeSelector({ current, onChange }: ThemeSelectorProps) {
+  const selected = themes.find((t) => t.id === current);
   return (
-    <div className="flex flex-wrap gap-2">
-      {themes.map((t) => (
-        <button
-          key={t.id}
-          onClick={() => onChange(t.id)}
-          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all border ${
-            current === t.id
-              ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
-              : 'bg-white/20 border-gray-300 hover:border-indigo-400 text-inherit'
-          }`}
-        >
-          {t.icon} {t.label}
-        </button>
-      ))}
+    <div className="relative">
+      <select
+        value={current}
+        onChange={(e) => onChange(e.target.value as Theme)}
+        className="appearance-none w-full bg-white/10 border border-white/20 rounded-xl pl-3 pr-8 py-2 text-sm font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400 hover:bg-white/20 transition-colors"
+        aria-label="Select theme"
+      >
+        {themes.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.icon} {t.label}
+          </option>
+        ))}
+      </select>
+      {/* Custom chevron */}
+      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs opacity-60">
+        ▾
+      </span>
+      {/* Selected theme preview label */}
+      {selected && (
+        <span className="mt-1 block text-center text-xs opacity-50">
+          {selected.icon} {selected.label}
+        </span>
+      )}
     </div>
   );
 }
