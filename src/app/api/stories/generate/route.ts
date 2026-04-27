@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getConfig, getStoredUsers, getEffectiveMaturitySettings, saveStory, StoryOptions } from '@/lib/storage';
+import { getConfig, getStoredUsers, getEffectiveMaturitySettings, getEffectiveMaturityRange, saveStory, StoryOptions } from '@/lib/storage';
 import { generateStory } from '@/lib/openai';
 import { randomUUID } from 'crypto';
 
@@ -16,7 +16,15 @@ export async function POST(req: NextRequest) {
   const userCfg = config.userConfigs?.[user.username];
 
   // Resolve effective maturity level and blocked topics from student/classroom/global settings
-  const { contentMaturityLevel, blockedTopics } = getEffectiveMaturitySettings(user.username);
+  const { contentMaturityLevel: defaultMaturityLevel, blockedTopics } = getEffectiveMaturitySettings(user.username);
+
+  // Allow students to pick their own maturity level within their allowed range
+  const maturityRange = getEffectiveMaturityRange(user.username);
+  let contentMaturityLevel = defaultMaturityLevel;
+  if (typeof body.contentMaturityLevel === 'number') {
+    const requested = Math.round(body.contentMaturityLevel);
+    contentMaturityLevel = Math.min(Math.max(maturityRange.min, requested), maturityRange.max);
+  }
 
   // Build effective story options: student-supplied values, overridden by admin locks
   const studentOptions: StoryOptions = {
@@ -26,6 +34,7 @@ export async function POST(req: NextRequest) {
     vocabularyComplexity: body.vocabularyComplexity,
     genre: body.genre,
     plot: body.plot,
+    contentMaturityLevel,
   };
 
   const lockedFields = userCfg?.lockedFields ?? [];

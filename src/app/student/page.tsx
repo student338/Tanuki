@@ -7,6 +7,7 @@ import StoryCard from '@/components/StoryCard';
 import OnboardingModal from '@/components/OnboardingModal';
 import { Story, LockableField } from '@/lib/storage';
 import { ReadingLevel } from '@/lib/reading-levels';
+import { MATURITY_LEVEL_INFO, MATURITY_LEVEL_DEFAULT } from '@/lib/safety';
 
 const GENRES = ['Fantasy', 'Adventure', 'Mystery', 'Sci-Fi', 'Romance', 'Horror', 'Comedy', 'Historical', 'Other'];
 
@@ -46,6 +47,10 @@ export default function StudentPage() {
   const [error, setError] = useState('');
   const [showOptions, setShowOptions] = useState(false);
 
+  // Maturity state
+  const [maturityRange, setMaturityRange] = useState<{ min: number; max: number }>({ min: 1, max: 6 });
+  const [contentMaturityLevel, setContentMaturityLevel] = useState<number>(MATURITY_LEVEL_DEFAULT);
+
   // Onboarding state
   const [onboardingData, setOnboardingData] = useState<OnboardingData | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -65,6 +70,8 @@ export default function StudentPage() {
     const locked: LockableField[] = cfg.lockedFields ?? [];
     const defaults: Record<string, unknown> = cfg.defaults ?? {};
     setLockedFields(locked);
+    if (cfg.maturityRange) setMaturityRange(cfg.maturityRange);
+    if (typeof cfg.contentMaturityLevel === 'number') setContentMaturityLevel(cfg.contentMaturityLevel);
     setOptions((prev) => {
       const next = { ...prev };
       for (const field of locked) {
@@ -123,6 +130,7 @@ export default function StudentPage() {
         vocabularyComplexity: options.vocabularyComplexity,
         genre: options.genre || undefined,
         plot: options.plot || undefined,
+        contentMaturityLevel,
       }),
     });
     const data = await res.json();
@@ -339,6 +347,42 @@ export default function StudentPage() {
                     className="w-full bg-black/5 border border-current/20 rounded-xl px-4 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 placeholder-current/30"
                   />
                 </div>
+
+                {/* Content maturity */}
+                {maturityRange.max > maturityRange.min && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2 opacity-80">Content maturity</label>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-purple-300">
+                        {MATURITY_LEVEL_INFO[contentMaturityLevel]?.emoji}{' '}
+                        {MATURITY_LEVEL_INFO[contentMaturityLevel]?.label}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={maturityRange.min}
+                      max={maturityRange.max}
+                      step={1}
+                      value={contentMaturityLevel}
+                      onChange={(e) => setContentMaturityLevel(Number(e.target.value))}
+                      className="w-full accent-purple-500 cursor-pointer"
+                    />
+                    <div className="flex justify-between mt-1">
+                      {Array.from({ length: maturityRange.max - maturityRange.min + 1 }, (_, i) => maturityRange.min + i).map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setContentMaturityLevel(n)}
+                          className={`text-xs text-center transition-colors ${contentMaturityLevel === n ? 'text-purple-300 font-semibold' : 'opacity-40 hover:opacity-70'}`}
+                          style={{ width: `${100 / (maturityRange.max - maturityRange.min + 1)}%` }}
+                        >
+                          {MATURITY_LEVEL_INFO[n]?.emoji}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-xs opacity-50">{MATURITY_LEVEL_INFO[contentMaturityLevel]?.description}</p>
+                  </div>
+                )}
               </div>
             )}
 

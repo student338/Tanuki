@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Story } from '@/lib/storage';
 
 interface StoryCardProps {
@@ -10,6 +11,7 @@ interface StoryCardProps {
 }
 
 export default function StoryCard({ story, showUser = false, onUpdated }: StoryCardProps) {
+  const router = useRouter();
   const date = new Date(story.createdAt).toLocaleString();
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(story.story);
@@ -82,6 +84,13 @@ export default function StoryCard({ story, showUser = false, onUpdated }: StoryC
           )}
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={() => router.push(`/student/reader/${story.id}`)}
+            title="Open reader"
+            className="text-xs opacity-60 hover:opacity-100 transition-opacity border border-white/20 px-3 py-1 rounded-lg hover:bg-white/10"
+          >
+            📖 Read
+          </button>
           <button
             onClick={handleExportPdf}
             title="Export as PDF"
