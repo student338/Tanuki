@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import ThemeWrapper from '@/components/ThemeWrapper';
 import StoryCard from '@/components/StoryCard';
+import OnboardingModal from '@/components/OnboardingModal';
 import { Story, LockableField } from '@/lib/storage';
+import { ReadingLevel } from '@/lib/reading-levels';
 
 const GENRES = ['Fantasy', 'Adventure', 'Mystery', 'Sci-Fi', 'Romance', 'Horror', 'Comedy', 'Historical', 'Other'];
 
@@ -26,6 +28,13 @@ const DEFAULT_OPTIONS: StoryOptions = {
   plot: '',
 };
 
+interface OnboardingData {
+  onboardingCompleted: boolean;
+  readingLevel: ReadingLevel | null;
+  preferences: { theme?: string; favoriteGenres?: string[] };
+  allowedReadingLevels: ReadingLevel[];
+}
+
 export default function StudentPage() {
   const router = useRouter();
   const [request, setRequest] = useState('');
@@ -36,6 +45,10 @@ export default function StudentPage() {
   const [currentStory, setCurrentStory] = useState<Story | null>(null);
   const [error, setError] = useState('');
   const [showOptions, setShowOptions] = useState(false);
+
+  // Onboarding state
+  const [onboardingData, setOnboardingData] = useState<OnboardingData | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const loadStories = useCallback(async () => {
     const res = await fetch('/api/stories');
@@ -52,7 +65,6 @@ export default function StudentPage() {
     const locked: LockableField[] = cfg.lockedFields ?? [];
     const defaults: Record<string, unknown> = cfg.defaults ?? {};
     setLockedFields(locked);
-    // Pre-fill locked fields with admin defaults
     setOptions((prev) => {
       const next = { ...prev };
       for (const field of locked) {
@@ -65,10 +77,21 @@ export default function StudentPage() {
     });
   }, []);
 
+  const loadOnboarding = useCallback(async () => {
+    const res = await fetch('/api/student/onboarding');
+    if (!res.ok) return;
+    const data: OnboardingData = await res.json();
+    setOnboardingData(data);
+    if (!data.onboardingCompleted) {
+      setShowOnboarding(true);
+    }
+  }, []);
+
   useEffect(() => {
     loadStories();
     loadStudentConfig();
-  }, [loadStories, loadStudentConfig]);
+    loadOnboarding();
+  }, [loadStories, loadStudentConfig, loadOnboarding]);
 
   function isLocked(field: LockableField) {
     return lockedFields.includes(field);
@@ -115,6 +138,29 @@ export default function StudentPage() {
     if (currentStory?.id === updated.id) setCurrentStory(updated);
   }
 
+  async function handleOnboardingComplete(data: {
+    readingLevel: ReadingLevel;
+    preferences: { theme: string; favoriteGenres: string[] };
+  }) {
+    await fetch('/api/student/onboarding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    // Apply theme to localStorage; ThemeWrapper listens for storage events
+    if (data.preferences.theme) {
+      localStorage.setItem('tanuki_theme', data.preferences.theme);
+      // Dispatch a storage event so ThemeWrapper (same window) reacts immediately
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'tanuki_theme',
+        newValue: data.preferences.theme,
+        storageArea: localStorage,
+      }));
+    }
+    setOnboardingData((prev) => prev ? { ...prev, ...data, onboardingCompleted: true } : null);
+    setShowOnboarding(false);
+  }
+
   const lockBadge = (field: LockableField) =>
     isLocked(field) ? (
       <span className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 border border-yellow-400/30 px-2 py-0.5 rounded-full">
@@ -124,18 +170,43 @@ export default function StudentPage() {
 
   return (
     <ThemeWrapper>
+      {showOnboarding && onboardingData && (
+        <OnboardingModal
+          allowedReadingLevels={onboardingData.allowedReadingLevels}
+          initialReadingLevel={onboardingData.readingLevel}
+          initialPreferences={onboardingData.preferences}
+          dismissable={onboardingData.onboardingCompleted}
+          onComplete={handleOnboardingComplete}
+          onDismiss={() => setShowOnboarding(false)}
+        />
+      )}
+
       <div className="min-h-screen">
         <header className="border-b border-current/10 px-6 py-4 flex justify-between items-center bg-black/5 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             <span className="text-2xl">🦝</span>
             <h1 className="text-xl font-bold">Tanuki Stories</h1>
+            {onboardingData?.readingLevel && (
+              <span className="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 px-2 py-0.5 rounded-full">
+                {onboardingData.readingLevel}
+              </span>
+            )}
           </div>
-          <button
-            onClick={handleLogout}
-            className="text-sm opacity-60 hover:opacity-100 transition-opacity border border-current/20 px-4 py-2 rounded-xl hover:bg-black/10"
-          >
-            Logout
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowOnboarding(true)}
+              title="Settings"
+              className="text-sm opacity-60 hover:opacity-100 transition-opacity border border-current/20 px-3 py-2 rounded-xl hover:bg-black/10"
+            >
+              ⚙️
+            </button>
+            <button
+              onClick={handleLogout}
+              className="text-sm opacity-60 hover:opacity-100 transition-opacity border border-current/20 px-4 py-2 rounded-xl hover:bg-black/10"
+            >
+              Logout
+            </button>
+          </div>
         </header>
 
         <main className="max-w-2xl mx-auto p-6 space-y-8">

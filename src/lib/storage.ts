@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import type { ReadingLevel } from './reading-levels';
+import { READING_LEVEL_VALUES } from './reading-levels';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
@@ -48,6 +50,11 @@ export interface Config {
   localModelId?: string;
   /** Per-student configuration set by admins. */
   userConfigs?: Record<string, UserConfig>;
+  /**
+   * Restricts the reading-level range students can choose during onboarding.
+   * If omitted the full Pre-K → Doctorate range is available.
+   */
+  readingLevelRange?: { min: ReadingLevel; max: ReadingLevel };
 }
 
 /** Options the student provides when requesting a story. */
@@ -55,7 +62,7 @@ export interface StoryOptions {
   title?: string;
   chapterCount?: number;
   readingComplexity?: 'simple' | 'intermediate' | 'advanced';
-  readingLevel?: 'Elementary' | 'Middle School' | 'High School' | 'Adult';
+  readingLevel?: ReadingLevel;
   vocabularyComplexity?: 'basic' | 'intermediate' | 'advanced';
   genre?: string;
   plot?: string;
@@ -126,7 +133,12 @@ export function updateStory(id: string, content: string): Story | null {
 
 // ── Stored student users ─────────────────────────────────────────────────────
 
-export type ReadingLevel = 'Elementary' | 'Middle School' | 'High School' | 'Adult';
+export interface StudentPreferences {
+  /** UI theme chosen during onboarding */
+  theme?: string;
+  /** Student's preferred story genres */
+  favoriteGenres?: string[];
+}
 
 export interface StoredUser {
   username: string;
@@ -138,6 +150,10 @@ export interface StoredUser {
   password: string;
   role: 'student' | 'admin';
   readingLevel?: ReadingLevel;
+  /** True once the student has completed the first-login onboarding flow. */
+  onboardingCompleted?: boolean;
+  /** Preferences captured during onboarding. */
+  preferences?: StudentPreferences;
 }
 
 export function getStoredUsers(): StoredUser[] {
@@ -175,6 +191,15 @@ export function deleteStoredUser(username: string): boolean {
   return true;
 }
 
+export function updateStoredUser(username: string, patch: Partial<Omit<StoredUser, 'username'>>): StoredUser | null {
+  const users = getStoredUsers();
+  const idx = users.findIndex((u) => u.username === username);
+  if (idx === -1) return null;
+  users[idx] = { ...users[idx], ...patch };
+  saveStoredUsers(users);
+  return users[idx];
+}
+
 /**
  * Import students from a CSV string.  The CSV may have an optional header row
  * (detected by the first row containing the word "username").  Each data row
@@ -182,8 +207,6 @@ export function deleteStoredUser(username: string): boolean {
  * Note: commas within usernames or passwords are not supported.
  * Returns the number of users successfully imported.
  */
-const READING_LEVEL_VALUES: ReadingLevel[] = ['Elementary', 'Middle School', 'High School', 'Adult'];
-
 export function importStudentsFromCsv(csv: string): number {
   const lines = csv
     .split(/\r?\n/)

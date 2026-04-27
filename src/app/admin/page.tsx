@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import StoryCard from '@/components/StoryCard';
-import { Story, LockableField, StoryDefaults, ReadingLevel } from '@/lib/storage';
+import { Story, LockableField, StoryDefaults } from '@/lib/storage';
+import { ReadingLevel, READING_LEVEL_VALUES } from '@/lib/reading-levels';
 
 const LOCKABLE_FIELDS: { key: LockableField; label: string }[] = [
   { key: 'chapterCount', label: 'Chapter count' },
@@ -22,6 +23,18 @@ interface UserConfig {
 interface StudentInfo {
   username: string;
   readingLevel?: ReadingLevel;
+  onboardingCompleted?: boolean;
+  preferences?: { theme?: string; favoriteGenres?: string[] };
+}
+
+interface StudentAnalytics {
+  username: string;
+  readingLevel?: string;
+  onboardingCompleted: boolean;
+  totalStories: number;
+  storiesLast7Days: number;
+  storiesLast30Days: number;
+  lastActiveAt: string | null;
 }
 
 export default function AdminPage() {
@@ -35,6 +48,11 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Reading level range
+  const [rlRangeMin, setRlRangeMin] = useState<ReadingLevel>('Pre-K');
+  const [rlRangeMax, setRlRangeMax] = useState<ReadingLevel>('Doctorate');
+  const [rlRangeError, setRlRangeError] = useState('');
+
   // Student management
   const [students, setStudents] = useState<StudentInfo[]>([]);
   const [newStudentUsername, setNewStudentUsername] = useState('');
@@ -45,11 +63,26 @@ export default function AdminPage() {
   const [csvImporting, setCsvImporting] = useState(false);
   const csvFileRef = useRef<HTMLInputElement>(null);
 
+  // Analytics
+  const [analytics, setAnalytics] = useState<StudentAnalytics[]>([]);
+
+  // Student settings management (per-user)
+  const [editingSettings, setEditingSettings] = useState<string | null>(null);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState('');
+
   const loadStudents = useCallback(async () => {
     const res = await fetch('/api/admin/students');
     if (!res.ok) return;
     const data = await res.json();
     setStudents(Array.isArray(data) ? data : []);
+  }, []);
+
+  const loadAnalytics = useCallback(async () => {
+    const res = await fetch('/api/admin/analytics');
+    if (!res.ok) return;
+    const data = await res.json();
+    setAnalytics(Array.isArray(data) ? data : []);
   }, []);
 
   const load = useCallback(async () => {
@@ -66,12 +99,18 @@ export default function AdminPage() {
     setLocalModelId(cfg.localModelId ?? '');
     setUserConfigs(cfg.userConfigs ?? {});
     setStories(Array.isArray(storiesData) ? storiesData : []);
+    // Reading level range
+    if (cfg.readingLevelRange) {
+      setRlRangeMin(cfg.readingLevelRange.min ?? 'Pre-K');
+      setRlRangeMax(cfg.readingLevelRange.max ?? 'Doctorate');
+    }
   }, [router]);
 
   useEffect(() => {
     load();
     loadStudents();
-  }, [load, loadStudents]);
+    loadAnalytics();
+  }, [load, loadStudents, loadAnalytics]);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -80,6 +119,14 @@ export default function AdminPage() {
 
   async function handleSave() {
     setSaving(true);
+    setRlRangeError('');
+    const minIdx = READING_LEVEL_VALUES.indexOf(rlRangeMin);
+    const maxIdx = READING_LEVEL_VALUES.indexOf(rlRangeMax);
+    if (maxIdx < minIdx) {
+      setRlRangeError('Maximum level must be greater than or equal to minimum level.');
+      setSaving(false);
+      return;
+    }
     await fetch('/api/admin/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -89,11 +136,34 @@ export default function AdminPage() {
         model: model.trim() || undefined,
         localModelId: localModelId.trim() || undefined,
         userConfigs,
+        readingLevelRange: { min: rlRangeMin, max: rlRangeMax },
       }),
     });
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  async function handleSaveStudentSettings(username: string, readingLevel: ReadingLevel | null, resetOnboarding: boolean) {
+    setSettingsSaving(true);
+    setSettingsMsg('');
+    const res = await fetch(`/api/admin/students/${encodeURIComponent(username)}/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        readingLevel: readingLevel ?? null,
+        ...(resetOnboarding ? { onboardingCompleted: false } : {}),
+      }),
+    });
+    setSettingsSaving(false);
+    if (res.ok) {
+      setSettingsMsg('Saved!');
+      setTimeout(() => setSettingsMsg(''), 2000);
+      loadStudents();
+      loadAnalytics();
+    } else {
+      setSettingsMsg('Save failed');
+    }
   }
 
   // Helpers for per-user locked-field configuration
@@ -481,6 +551,149 @@ export default function AdminPage() {
           </div>
         </section>
 
+        {/* Reading Level Range */}
+        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <span>📖</span> Onboarding Reading Level Range
+          </h2>
+          <p className="text-sm text-gray-400">
+            Restrict which reading levels students can choose during onboarding. Only levels within
+            this range will be shown to students.
+          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Minimum level</label>
+              <select
+                value={rlRangeMin}
+                onChange={(e) => setRlRangeMin(e.target.value as ReadingLevel)}
+                className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm"
+              >
+                {READING_LEVEL_VALUES.map((lvl) => (
+                  <option key={lvl} value={lvl}>{lvl}</option>
+                ))}
+              </select>
+            </div>
+            <span className="text-gray-500">→</span>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Maximum level</label>
+              <select
+                value={rlRangeMax}
+                onChange={(e) => setRlRangeMax(e.target.value as ReadingLevel)}
+                className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm"
+              >
+                {READING_LEVEL_VALUES.map((lvl) => (
+                  <option key={lvl} value={lvl}>{lvl}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2 rounded-xl transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Save Range'}
+            </button>
+            {saved && <span className="text-green-400 text-sm">✓ Saved!</span>}
+            {rlRangeError && <span className="text-red-400 text-sm">{rlRangeError}</span>}
+          </div>
+        </section>
+
+        {/* Student Onboarding Settings */}
+        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <span>🎓</span> Student Onboarding &amp; Settings
+          </h2>
+          <p className="text-sm text-gray-400">
+            View and override individual student reading levels and preferences, or reset their
+            onboarding so they are prompted again on next login.
+          </p>
+          {settingsMsg && <p className="text-green-400 text-sm">✓ {settingsMsg}</p>}
+          {students.length === 0 ? (
+            <p className="text-gray-500 text-sm">No students enrolled yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {students.map((s) => (
+                <StudentSettingsRow
+                  key={s.username}
+                  student={s}
+                  saving={settingsSaving && editingSettings === s.username}
+                  onSave={(rl, reset) => {
+                    setEditingSettings(s.username);
+                    handleSaveStudentSettings(s.username, rl, reset);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Analytics */}
+        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <span>📊</span> Student Analytics
+            </h2>
+            <button
+              onClick={loadAnalytics}
+              className="text-xs text-gray-400 hover:text-white border border-white/20 px-3 py-1 rounded-lg hover:bg-white/10 transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
+          {analytics.length === 0 ? (
+            <p className="text-gray-500 text-sm">No student data yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-400 border-b border-white/10">
+                    <th className="pb-2 pr-4">Student</th>
+                    <th className="pb-2 pr-4">Reading Level</th>
+                    <th className="pb-2 pr-4">Onboarded</th>
+                    <th className="pb-2 pr-4">Total Stories</th>
+                    <th className="pb-2 pr-4">Last 7 Days</th>
+                    <th className="pb-2 pr-4">Last 30 Days</th>
+                    <th className="pb-2">Last Active</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {analytics.map((a) => (
+                    <tr key={a.username} className="hover:bg-white/5 transition-colors">
+                      <td className="py-2 pr-4 font-medium">👤 {a.username}</td>
+                      <td className="py-2 pr-4">
+                        {a.readingLevel ? (
+                          <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full">
+                            {a.readingLevel}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-4">
+                        {a.onboardingCompleted ? (
+                          <span className="text-green-400 text-xs">✓ Yes</span>
+                        ) : (
+                          <span className="text-yellow-400 text-xs">⏳ Pending</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-4 text-center font-mono">{a.totalStories}</td>
+                      <td className="py-2 pr-4 text-center font-mono">{a.storiesLast7Days}</td>
+                      <td className="py-2 pr-4 text-center font-mono">{a.storiesLast30Days}</td>
+                      <td className="py-2 text-gray-400 text-xs">
+                        {a.lastActiveAt
+                          ? new Date(a.lastActiveAt).toLocaleDateString()
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
         {/* All stories */}
         <section>
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -510,3 +723,77 @@ export default function AdminPage() {
   );
 }
 
+// ── Helper sub-component: per-student settings row ─────────────────────────
+
+interface StudentSettingsRowProps {
+  student: StudentInfo;
+  saving: boolean;
+  onSave: (readingLevel: ReadingLevel | null, resetOnboarding: boolean) => void;
+}
+
+function StudentSettingsRow({ student, saving, onSave }: StudentSettingsRowProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [readingLevel, setReadingLevel] = useState<ReadingLevel | ''>(student.readingLevel ?? '');
+  const [resetOnboarding, setResetOnboarding] = useState(false);
+
+  return (
+    <div className="border border-white/10 rounded-2xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors text-left"
+      >
+        <span className="flex items-center gap-2 text-sm font-medium">
+          👤 {student.username}
+          {student.readingLevel && (
+            <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full">
+              {student.readingLevel}
+            </span>
+          )}
+          {student.onboardingCompleted ? (
+            <span className="text-xs text-green-400">✓ Onboarded</span>
+          ) : (
+            <span className="text-xs text-yellow-400">⏳ Not yet onboarded</span>
+          )}
+        </span>
+        <span className="text-gray-400 text-sm">{expanded ? '▲' : '▼'}</span>
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 space-y-3 border-t border-white/10 pt-3">
+          <div className="flex flex-wrap items-center gap-4">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Override reading level</label>
+              <select
+                value={readingLevel}
+                onChange={(e) => setReadingLevel(e.target.value as ReadingLevel | '')}
+                className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm"
+              >
+                <option value="">(keep current / student-chosen)</option>
+                {READING_LEVEL_VALUES.map((lvl) => (
+                  <option key={lvl} value={lvl}>{lvl}</option>
+                ))}
+              </select>
+            </div>
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none mt-4">
+              <input
+                type="checkbox"
+                checked={resetOnboarding}
+                onChange={(e) => setResetOnboarding(e.target.checked)}
+                className="w-4 h-4 rounded accent-yellow-400"
+              />
+              Reset onboarding (student sees wizard again)
+            </label>
+          </div>
+          <button
+            onClick={() => onSave(readingLevel || null, resetOnboarding)}
+            disabled={saving}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2 rounded-xl transition-colors disabled:opacity-50 text-sm"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
