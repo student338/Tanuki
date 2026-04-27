@@ -31,17 +31,7 @@ const READING_LEVEL_COLORS: Record<
   'Doctorate':    { selectedGradient: 'from-amber-400 to-orange-500',    selectedShadow: 'shadow-amber-500/50',   unselectedBg: 'bg-amber-500/10',    unselectedBorder: 'border-amber-400/30'   },
 };
 
-const THEME_OPTIONS = [
-  { id: 'light', label: 'Light', icon: '☀️' },
-  { id: 'dark', label: 'Dark', icon: '🌙' },
-  { id: 'sepia', label: 'Sepia', icon: '📜' },
-  { id: 'orbs-white', label: 'Orbs / White', icon: '🔮' },
-  { id: 'orbs-black', label: 'Orbs / Black', icon: '✨' },
-  { id: 'forest', label: 'Forest', icon: '🌿' },
-  { id: 'ocean', label: 'Ocean', icon: '🌊' },
-  { id: 'sunset', label: 'Sunset', icon: '🌅' },
-  { id: 'midnight', label: 'Midnight', icon: '🌌' },
-];
+import { themes as THEME_OPTIONS } from './ThemeSelector';
 
 interface OnboardingModalProps {
   allowedReadingLevels: ReadingLevel[];

@@ -9,7 +9,7 @@ interface ThemeSelectorProps {
   onChange: (theme: Theme) => void;
 }
 
-const themes: { id: Theme; label: string; icon: string }[] = [
+export const themes: { id: Theme; label: string; icon: string }[] = [
   { id: 'light', label: 'Light', icon: '☀️' },
   { id: 'dark', label: 'Dark', icon: '🌙' },
   { id: 'sepia', label: 'Sepia', icon: '📜' },
