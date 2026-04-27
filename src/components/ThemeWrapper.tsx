@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import OrbBackground from './OrbBackground';
-import ThemeSelector, { Theme, VALID_THEMES } from './ThemeSelector';
+import { Theme, VALID_THEMES } from './ThemeSelector';
 
 const themeClasses: Record<Theme, string> = {
   light: 'bg-white text-gray-900',
@@ -19,6 +19,12 @@ const themeClasses: Record<Theme, string> = {
   neon: 'bg-violet-950 text-lime-300',
   lemon: 'bg-yellow-100 text-yellow-900',
   galaxy: 'bg-purple-950 text-purple-100',
+  rose: 'bg-rose-100 text-rose-900',
+  coffee: 'bg-amber-950 text-amber-100',
+  arctic: 'bg-blue-50 text-blue-900',
+  autumn: 'bg-orange-900 text-orange-50',
+  emerald: 'bg-emerald-900 text-emerald-50',
+  vapor: 'bg-fuchsia-950 text-pink-200',
 };
 
 interface ThemeWrapperProps {
@@ -33,7 +39,7 @@ export default function ThemeWrapper({ children }: ThemeWrapperProps) {
     if (saved && VALID_THEMES.includes(saved)) setTheme(saved);
   }, []);
 
-  // Listen for cross-component theme changes written to localStorage
+  // Listen for theme changes dispatched from page-level ThemeSelectors
   useEffect(() => {
     function onStorage(e: StorageEvent) {
       if (e.key === 'tanuki_theme' && e.newValue && VALID_THEMES.includes(e.newValue as Theme)) {
@@ -44,22 +50,12 @@ export default function ThemeWrapper({ children }: ThemeWrapperProps) {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  const handleChange = (t: Theme) => {
-    setTheme(t);
-    localStorage.setItem('tanuki_theme', t);
-  };
-
   return (
     <div className={`min-h-screen relative transition-colors duration-500 ${themeClasses[theme]}`}>
       {(theme === 'orbs-white' || theme === 'orbs-black') && (
         <OrbBackground variant={theme === 'orbs-white' ? 'white' : 'black'} />
       )}
       <div className="relative z-10">
-        <div className="fixed top-4 right-4 z-50 bg-white/[0.08] backdrop-blur-xl rounded-2xl p-3 shadow-lg border border-white/20"
-          style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.08) inset, 0 8px 24px rgba(0,0,0,0.3)' }}
-        >
-          <ThemeSelector current={theme} onChange={handleChange} />
-        </div>
         {children}
       </div>
     </div>
