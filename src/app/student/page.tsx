@@ -182,7 +182,9 @@ export default function StudentPage() {
       )}
 
       <div className="min-h-screen">
-        <header className="border-b border-current/10 px-6 py-4 flex justify-between items-center bg-black/5 backdrop-blur-sm">
+        <header className="border-b border-white/10 px-6 py-4 flex justify-between items-center bg-white/[0.06] backdrop-blur-xl shadow-sm"
+          style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.08)' }}
+        >
           <div className="flex items-center gap-3">
             <span className="text-2xl">🦝</span>
             <h1 className="text-xl font-bold">Tanuki Stories</h1>
@@ -210,7 +212,11 @@ export default function StudentPage() {
         </header>
 
         <main className="max-w-2xl mx-auto p-6 space-y-8">
-          <section className="bg-black/5 backdrop-blur-sm rounded-3xl p-6 border border-current/10 shadow-xl">
+          <section className="glass-shimmer relative bg-white/[0.07] backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl"
+            style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.07) inset, 0 8px 32px rgba(0,0,0,0.2)' }}
+          >
+            {/* top highlight */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent rounded-t-3xl" />
             <h2 className="text-lg font-semibold mb-4">✍️ Request a Story</h2>
             <textarea
               value={request}

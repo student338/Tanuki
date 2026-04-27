@@ -16,6 +16,21 @@ const READING_LEVEL_ICONS: Record<ReadingLevel, string> = {
   'Doctorate': '🎖️',
 };
 
+/** Per-level color tokens — used for both selected and unselected states. */
+const READING_LEVEL_COLORS: Record<
+  ReadingLevel,
+  { selectedGradient: string; selectedShadow: string; unselectedBg: string; unselectedBorder: string }
+> = {
+  'Pre-K':        { selectedGradient: 'from-emerald-400 to-green-500',   selectedShadow: 'shadow-emerald-500/50', unselectedBg: 'bg-emerald-500/10',  unselectedBorder: 'border-emerald-400/30' },
+  'Kindergarten': { selectedGradient: 'from-cyan-400 to-teal-500',       selectedShadow: 'shadow-cyan-500/50',    unselectedBg: 'bg-cyan-500/10',     unselectedBorder: 'border-cyan-400/30'    },
+  'Elementary':   { selectedGradient: 'from-sky-400 to-blue-500',        selectedShadow: 'shadow-sky-500/50',     unselectedBg: 'bg-sky-500/10',      unselectedBorder: 'border-sky-400/30'     },
+  'Middle School':{ selectedGradient: 'from-blue-400 to-indigo-500',     selectedShadow: 'shadow-blue-500/50',    unselectedBg: 'bg-blue-500/10',     unselectedBorder: 'border-blue-400/30'    },
+  'High School':  { selectedGradient: 'from-indigo-400 to-violet-500',   selectedShadow: 'shadow-indigo-500/50',  unselectedBg: 'bg-indigo-500/10',   unselectedBorder: 'border-indigo-400/30'  },
+  'College':      { selectedGradient: 'from-violet-400 to-purple-500',   selectedShadow: 'shadow-violet-500/50',  unselectedBg: 'bg-violet-500/10',   unselectedBorder: 'border-violet-400/30'  },
+  'Graduate':     { selectedGradient: 'from-fuchsia-400 to-rose-500',    selectedShadow: 'shadow-fuchsia-500/50', unselectedBg: 'bg-fuchsia-500/10',  unselectedBorder: 'border-fuchsia-400/30' },
+  'Doctorate':    { selectedGradient: 'from-amber-400 to-orange-500',    selectedShadow: 'shadow-amber-500/50',   unselectedBg: 'bg-amber-500/10',    unselectedBorder: 'border-amber-400/30'   },
+};
+
 const THEME_OPTIONS = [
   { id: 'light', label: 'Light', icon: '☀️' },
   { id: 'dark', label: 'Dark', icon: '🌙' },
@@ -66,8 +81,10 @@ export default function OnboardingModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="relative w-full max-w-lg bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 rounded-3xl shadow-2xl border border-white/20 text-white overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+      <div className="glass-shimmer relative w-full max-w-lg bg-white/[0.07] backdrop-blur-2xl rounded-3xl shadow-2xl border border-white/20 text-white overflow-hidden"
+        style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.08) inset, 0 25px 50px -12px rgba(0,0,0,0.7), 0 0 80px -20px rgba(139,92,246,0.3)' }}
+      >
 
         {dismissable && onDismiss && (
           <button
@@ -108,22 +125,28 @@ export default function OnboardingModal({
             <p className="text-purple-200 text-sm">
               This helps us tailor stories to the right complexity for you. You can always change it later.
             </p>
-            <div className="grid grid-cols-2 gap-2 mt-3">
-              {allowedReadingLevels.map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  onClick={() => setReadingLevel(level)}
-                  className={`flex items-center gap-2 px-4 py-3 rounded-2xl border text-sm font-medium transition-all ${
-                    readingLevel === level
-                      ? 'bg-indigo-600 border-indigo-500 shadow-md shadow-indigo-900/50'
-                      : 'bg-white/10 border-white/20 hover:bg-white/20'
-                  }`}
-                >
-                  <span className="text-base">{READING_LEVEL_ICONS[level]}</span>
-                  {level}
-                </button>
-              ))}
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              {allowedReadingLevels.map((level) => {
+                const colors = READING_LEVEL_COLORS[level];
+                const isSelected = readingLevel === level;
+                return (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => setReadingLevel(level)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-2xl border text-sm font-medium transition-all duration-200 ${
+                      isSelected
+                        ? `bg-gradient-to-r ${colors.selectedGradient} border-transparent shadow-lg ${colors.selectedShadow} scale-[1.03]`
+                        : `${colors.unselectedBg} ${colors.unselectedBorder} hover:scale-[1.02] hover:border-white/30 hover:bg-white/15`
+                    }`}
+                  >
+                    <span className={`text-lg leading-none ${isSelected ? 'icon-selected' : ''}`}>
+                      {READING_LEVEL_ICONS[level]}
+                    </span>
+                    <span>{level}</span>
+                  </button>
+                );
+              })}
             </div>
             <button
               onClick={() => setStep('preferences')}
