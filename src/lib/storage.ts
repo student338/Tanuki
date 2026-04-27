@@ -154,6 +154,12 @@ export interface StoredUser {
   onboardingCompleted?: boolean;
   /** Preferences captured during onboarding. */
   preferences?: StudentPreferences;
+  /**
+   * Admin-controlled content maturity level (1–5).
+   * 1 = Very Safe (pre-K/early childhood), 2 = Child-Safe (default),
+   * 3 = General (preteen), 4 = Teen, 5 = Young Adult.
+   */
+  contentMaturityLevel?: number;
 }
 
 export function getStoredUsers(): StoredUser[] {

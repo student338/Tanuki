@@ -27,6 +27,7 @@ export async function GET(
     readingLevel: storedUser.readingLevel ?? null,
     onboardingCompleted: storedUser.onboardingCompleted ?? false,
     preferences: storedUser.preferences ?? {},
+    contentMaturityLevel: storedUser.contentMaturityLevel ?? 2,
   });
 }
 
@@ -49,6 +50,7 @@ export async function POST(
     readingLevel?: string | null;
     onboardingCompleted?: boolean;
     preferences?: StudentPreferences;
+    contentMaturityLevel?: number;
   };
 
   const patch: Parameters<typeof updateStoredUser>[1] = {};
@@ -76,6 +78,14 @@ export async function POST(
       );
     }
     patch.preferences = prefs;
+  }
+
+  if (typeof body.contentMaturityLevel === 'number') {
+    const level = Math.round(body.contentMaturityLevel);
+    if (level < 1 || level > 5) {
+      return NextResponse.json({ error: 'contentMaturityLevel must be between 1 and 5' }, { status: 400 });
+    }
+    patch.contentMaturityLevel = level;
   }
 
   updateStoredUser(username, patch);

@@ -25,6 +25,7 @@ interface StudentInfo {
   readingLevel?: ReadingLevel;
   onboardingCompleted?: boolean;
   preferences?: { theme?: string; favoriteGenres?: string[] };
+  contentMaturityLevel?: number;
 }
 
 interface StudentAnalytics {
@@ -144,7 +145,7 @@ export default function AdminPage() {
     setTimeout(() => setSaved(false), 2000);
   }
 
-  async function handleSaveStudentSettings(username: string, readingLevel: ReadingLevel | null, resetOnboarding: boolean) {
+  async function handleSaveStudentSettings(username: string, readingLevel: ReadingLevel | null, resetOnboarding: boolean, contentMaturityLevel: number) {
     setSettingsSaving(true);
     setSettingsMsg('');
     const res = await fetch(`/api/admin/students/${encodeURIComponent(username)}/settings`, {
@@ -152,6 +153,7 @@ export default function AdminPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         readingLevel: readingLevel ?? null,
+        contentMaturityLevel,
         ...(resetOnboarding ? { onboardingCompleted: false } : {}),
       }),
     });
@@ -619,9 +621,9 @@ export default function AdminPage() {
                   key={s.username}
                   student={s}
                   saving={settingsSaving && editingSettings === s.username}
-                  onSave={(rl, reset) => {
+                  onSave={(rl, reset, maturityLevel) => {
                     setEditingSettings(s.username);
-                    handleSaveStudentSettings(s.username, rl, reset);
+                    handleSaveStudentSettings(s.username, rl, reset, maturityLevel);
                   }}
                 />
               ))}
@@ -725,16 +727,27 @@ export default function AdminPage() {
 
 // ── Helper sub-component: per-student settings row ─────────────────────────
 
+const MATURITY_LABELS: Record<number, { label: string; emoji: string; description: string }> = {
+  1: { label: 'Very Safe', emoji: '🌱', description: 'Gentle content for very young children (ages 3–5)' },
+  2: { label: 'Child-Safe', emoji: '🧒', description: 'Standard children\'s content (ages 6–10)' },
+  3: { label: 'General', emoji: '📚', description: 'Mild adventure for preteens (ages 10–13)' },
+  4: { label: 'Teen', emoji: '🎒', description: 'Teen-appropriate themes (ages 13–17)' },
+  5: { label: 'Young Adult', emoji: '🎓', description: 'Complex themes for young adults (ages 16+)' },
+};
+
 interface StudentSettingsRowProps {
   student: StudentInfo;
   saving: boolean;
-  onSave: (readingLevel: ReadingLevel | null, resetOnboarding: boolean) => void;
+  onSave: (readingLevel: ReadingLevel | null, resetOnboarding: boolean, contentMaturityLevel: number) => void;
 }
 
 function StudentSettingsRow({ student, saving, onSave }: StudentSettingsRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [readingLevel, setReadingLevel] = useState<ReadingLevel | ''>(student.readingLevel ?? '');
   const [resetOnboarding, setResetOnboarding] = useState(false);
+  const [maturityLevel, setMaturityLevel] = useState<number>(student.contentMaturityLevel ?? 2);
+
+  const maturityInfo = MATURITY_LABELS[maturityLevel];
 
   return (
     <div className="border border-white/10 rounded-2xl overflow-hidden">
@@ -750,6 +763,9 @@ function StudentSettingsRow({ student, saving, onSave }: StudentSettingsRowProps
               {student.readingLevel}
             </span>
           )}
+          <span className="text-xs bg-purple-500/20 text-purple-300 border border-purple-400/30 px-2 py-0.5 rounded-full">
+            {maturityInfo.emoji} {maturityInfo.label}
+          </span>
           {student.onboardingCompleted ? (
             <span className="text-xs text-green-400">✓ Onboarded</span>
           ) : (
@@ -760,8 +776,8 @@ function StudentSettingsRow({ student, saving, onSave }: StudentSettingsRowProps
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 space-y-3 border-t border-white/10 pt-3">
-          <div className="flex flex-wrap items-center gap-4">
+        <div className="px-4 pb-4 space-y-4 border-t border-white/10 pt-3">
+          <div className="flex flex-wrap items-start gap-6">
             <div>
               <label className="block text-xs text-gray-400 mb-1">Override reading level</label>
               <select
@@ -775,7 +791,7 @@ function StudentSettingsRow({ student, saving, onSave }: StudentSettingsRowProps
                 ))}
               </select>
             </div>
-            <label className="flex items-center gap-2 text-sm cursor-pointer select-none mt-4">
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none mt-5">
               <input
                 type="checkbox"
                 checked={resetOnboarding}
@@ -785,8 +801,44 @@ function StudentSettingsRow({ student, saving, onSave }: StudentSettingsRowProps
               Reset onboarding (student sees wizard again)
             </label>
           </div>
+
+          {/* Content maturity slider */}
+          <div>
+            <label className="block text-xs text-gray-400 mb-3">
+              Content maturity
+              <span className="ml-2 text-purple-300 font-medium">{maturityInfo.emoji} {maturityInfo.label}</span>
+            </label>
+            <div className="px-1">
+              <input
+                type="range"
+                min={1}
+                max={5}
+                step={1}
+                value={maturityLevel}
+                onChange={(e) => setMaturityLevel(Number(e.target.value))}
+                className="w-full accent-purple-500 cursor-pointer"
+              />
+              <div className="flex justify-between mt-1">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setMaturityLevel(n)}
+                    className={`text-xs text-center transition-colors ${maturityLevel === n ? 'text-purple-300 font-semibold' : 'text-gray-500 hover:text-gray-300'}`}
+                    style={{ width: '20%' }}
+                  >
+                    {MATURITY_LABELS[n].emoji}
+                    <br />
+                    {MATURITY_LABELS[n].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">{maturityInfo.description}</p>
+          </div>
+
           <button
-            onClick={() => onSave(readingLevel || null, resetOnboarding)}
+            onClick={() => onSave(readingLevel || null, resetOnboarding, maturityLevel)}
             disabled={saving}
             className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2 rounded-xl transition-colors disabled:opacity-50 text-sm"
           >

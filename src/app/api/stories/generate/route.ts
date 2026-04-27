@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
   // Look up the student's stored reading level (set via CSV import)
   const storedUser = getStoredUsers().find((u) => u.username === user.username);
   const studentReadingLevel = storedUser?.readingLevel;
+  const contentMaturityLevel = storedUser?.contentMaturityLevel;
 
   // Build effective story options: student-supplied values, overridden by admin locks
   const studentOptions: StoryOptions = {
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest) {
       apiBaseUrl: config.apiBaseUrl,
       model: config.model,
       localModelId: config.localModelId,
+      contentMaturityLevel,
     });
   } catch (err) {
     console.error('Story generation error:', err);
