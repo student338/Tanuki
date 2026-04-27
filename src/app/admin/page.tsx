@@ -728,10 +728,10 @@ export default function AdminPage() {
 // ── Helper sub-component: per-student settings row ─────────────────────────
 
 const MATURITY_LABELS: Record<number, { label: string; emoji: string; description: string }> = {
-  1: { label: 'Very Safe', emoji: '🌱', description: 'Gentle content for very young children (ages 3–5)' },
-  2: { label: 'Child-Safe', emoji: '🧒', description: 'Standard children\'s content (ages 6–10)' },
-  3: { label: 'General', emoji: '📚', description: 'Mild adventure for preteens (ages 10–13)' },
-  4: { label: 'Teen', emoji: '🎒', description: 'Teen-appropriate themes (ages 13–17)' },
+  1: { label: 'Very Safe', emoji: '🌱', description: 'Gentle content for very young children (ages 3-5)' },
+  2: { label: 'Child-Safe', emoji: '🧒', description: 'Standard children\'s content (ages 6-10)' },
+  3: { label: 'General', emoji: '📚', description: 'Mild adventure for preteens (ages 10-13)' },
+  4: { label: 'Teen', emoji: '🎒', description: 'Teen-appropriate themes (ages 13-17)' },
   5: { label: 'Young Adult', emoji: '🎓', description: 'Complex themes for young adults (ages 16+)' },
 };
 

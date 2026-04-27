@@ -5,10 +5,10 @@ import type { StoryOptions } from './storage';
  * prompt to restrict or allow themes in generated stories.
  */
 const MATURITY_INSTRUCTIONS: Record<number, string> = {
-  1: 'Write extremely safe, gentle content appropriate for very young children (ages 3–5). Use only uplifting, happy themes. Avoid all conflict, threats, scary imagery, or negative emotions.',
-  2: 'Write child-safe content appropriate for ages 6–10. Mild conflict is acceptable but must resolve happily. Avoid violence, frightening themes, romance, or any adult topics.',
-  3: 'Write content appropriate for preteens (ages 10–13). Adventure and mild tension are acceptable. Avoid graphic violence, romantic content, or mature themes.',
-  4: 'Write content appropriate for teenagers (ages 13–17). Relatable teen themes, mild conflict, and light friendship/romance are acceptable. Avoid graphic violence, explicit content, or adult themes.',
+  1: 'Write extremely safe, gentle content appropriate for very young children (ages 3-5). Use only uplifting, happy themes. Avoid all conflict, threats, scary imagery, or negative emotions.',
+  2: 'Write child-safe content appropriate for ages 6-10. Mild conflict is acceptable but must resolve happily. Avoid violence, frightening themes, romance, or any adult topics.',
+  3: 'Write content appropriate for preteens (ages 10-13). Adventure and mild tension are acceptable. Avoid graphic violence, romantic content, or mature themes.',
+  4: 'Write content appropriate for teenagers (ages 13-17). Relatable teen themes, mild conflict, and light friendship/romance are acceptable. Avoid graphic violence, explicit content, or adult themes.',
   5: 'Write content appropriate for young adults (ages 16+). Complex themes, moral ambiguity, and mature storylines are acceptable. Avoid explicit sexual content or graphic gore.',
 };
 
