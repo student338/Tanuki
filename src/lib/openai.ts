@@ -1,4 +1,18 @@
 import type { StoryOptions } from './storage';
+import { MATURITY_LEVEL_DEFAULT } from './safety';
+
+/**
+ * Admin-controlled content maturity descriptions injected into the system
+ * prompt to restrict or allow themes in generated stories.
+ * Level 6 (None) intentionally has no entry — no safety clause is added.
+ */
+const MATURITY_INSTRUCTIONS: Record<number, string> = {
+  1: 'Write extremely safe, gentle content appropriate for very young children (ages 3-5). Use only uplifting, happy themes. Avoid all conflict, threats, scary imagery, or negative emotions.',
+  2: 'Write child-safe content appropriate for ages 6-10. Mild conflict is acceptable but must resolve happily. Avoid violence, frightening themes, romance, or any adult topics.',
+  3: 'Write content appropriate for preteens (ages 10-13). Adventure and mild tension are acceptable. Avoid graphic violence, romantic content, or mature themes.',
+  4: 'Write content appropriate for teenagers (ages 13-17). Relatable teen themes, mild conflict, and light friendship/romance are acceptable. Avoid graphic violence, explicit content, or adult themes.',
+  5: 'Write content appropriate for young adults (ages 16+). Complex themes, moral ambiguity, and mature storylines are acceptable. Avoid explicit sexual content or graphic gore.',
+};
 
 export interface GenerateOptions {
   systemPrompt: string;
@@ -12,6 +26,18 @@ export interface GenerateOptions {
    * locally via @huggingface/transformers.
    */
   localModelId?: string;
+  /**
+   * Admin-set content maturity level (1–6).  Appended to the system prompt
+   * to guide the model toward age-appropriate content.
+   * Level 6 = "None" (no safety clause added).
+   * Defaults to 2 (child-safe) when not provided.
+   */
+  contentMaturityLevel?: number;
+  /**
+   * Topics to explicitly exclude from the generated story.
+   * Accumulated from global, classroom, and per-student settings.
+   */
+  blockedTopics?: string[];
 }
 
 function buildUserMessage(userRequest: string, opts?: StoryOptions): string {
@@ -39,10 +65,27 @@ function buildUserMessage(userRequest: string, opts?: StoryOptions): string {
 }
 
 export async function generateStory(options: GenerateOptions): Promise<string> {
-  const { systemPrompt, userRequest, storyOptions, apiBaseUrl, model, localModelId } = options;
+  const { systemPrompt, userRequest, storyOptions, apiBaseUrl, model, localModelId, contentMaturityLevel, blockedTopics } = options;
   const apiKey = process.env.OPENAI_API_KEY;
 
   const userMessage = buildUserMessage(userRequest, storyOptions);
+
+  // Build effective system prompt with maturity and topic-blocking clauses
+  const promptParts: string[] = [systemPrompt];
+
+  const level = contentMaturityLevel !== undefined && contentMaturityLevel >= 1 && contentMaturityLevel <= 6
+    ? contentMaturityLevel
+    : MATURITY_LEVEL_DEFAULT;
+  const maturityInstruction = MATURITY_INSTRUCTIONS[level]; // undefined for level 6 (None)
+  if (maturityInstruction) {
+    promptParts.push(`Content safety: ${maturityInstruction}`);
+  }
+
+  if (blockedTopics && blockedTopics.length > 0) {
+    promptParts.push(`Do not include content about the following topics: ${blockedTopics.join(', ')}.`);
+  }
+
+  const effectiveSystemPrompt = promptParts.join('\n\n');
 
   const chapterCount = storyOptions?.chapterCount ?? 1;
   // Allow unrestricted token output — ~420 tokens (~300 words) per chapter
@@ -51,7 +94,7 @@ export async function generateStory(options: GenerateOptions): Promise<string> {
   // ── Local .safetensors model (highest priority) ──────────────────────────
   if (localModelId) {
     const { generateWithLocalModel } = await import('./local-model');
-    const prompt = `${systemPrompt}\n\n${userMessage}`;
+    const prompt = `${effectiveSystemPrompt}\n\n${userMessage}`;
     return generateWithLocalModel(localModelId, prompt, maxTokens);
   }
 
@@ -70,7 +113,7 @@ export async function generateStory(options: GenerateOptions): Promise<string> {
   const response = await client.chat.completions.create({
     model: model ?? 'gpt-4o-mini',
     messages: [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: effectiveSystemPrompt },
       { role: 'user', content: userMessage },
     ],
     max_tokens: maxTokens,

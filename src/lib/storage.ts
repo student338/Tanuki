@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import type { ReadingLevel } from './reading-levels';
 import { READING_LEVEL_VALUES } from './reading-levels';
+import { MATURITY_LEVEL_DEFAULT } from './safety';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
@@ -35,6 +36,46 @@ export interface UserConfig {
   defaults?: StoryDefaults;
 }
 
+/** Per-classroom safety and maturity defaults. */
+export interface ClassroomConfig {
+  /** Human-readable name for this classroom. */
+  name: string;
+  /** Usernames of students belonging to this classroom. */
+  members: string[];
+  /**
+   * Default content maturity level for all members (1–6).
+   * Overrides the global default; per-student values override this.
+   */
+  contentMaturityLevel?: number;
+  /**
+   * Topics blocked for all members of this classroom.
+   * Merged with the global blocked-topics list.
+   */
+  blockedTopics?: string[];
+  /**
+   * Tightens the allowed maturity-level range for members of this classroom.
+   * Intersected with the global range.
+   */
+  maturityLevelRange?: { min: number; max: number };
+}
+
+/** Global safety defaults applied when no per-student or per-classroom setting exists. */
+export interface GlobalSafetyConfig {
+  /**
+   * Default content maturity level (1–6) used for students without a classroom
+   * or per-student setting.  Defaults to 2 (Child-Safe) when omitted.
+   */
+  contentMaturityLevel?: number;
+  /** Topics blocked globally for every student. */
+  blockedTopics?: string[];
+  /**
+   * Hard constraint on the maturity-level range that may be assigned to any
+   * student or classroom in the system.  The admin UI slider is clamped to
+   * this range, and the settings API rejects values outside it.
+   */
+  maturityLevelRange?: { min: number; max: number };
+}
+
 export interface Config {
   systemPrompt: string;
   /** Custom OpenAI-compatible API base URL (e.g. http://localhost:11434/v1). */
@@ -55,6 +96,10 @@ export interface Config {
    * If omitted the full Pre-K → Doctorate range is available.
    */
   readingLevelRange?: { min: ReadingLevel; max: ReadingLevel };
+  /** Global safety defaults applied when no per-student or classroom setting exists. */
+  globalSafety?: GlobalSafetyConfig;
+  /** Named groups of students sharing default safety/maturity settings. */
+  classrooms?: Record<string, ClassroomConfig>;
 }
 
 /** Options the student provides when requesting a story. */
@@ -154,6 +199,17 @@ export interface StoredUser {
   onboardingCompleted?: boolean;
   /** Preferences captured during onboarding. */
   preferences?: StudentPreferences;
+  /**
+   * Admin-controlled content maturity level (1–6).
+   * 1 = Very Safe, 2 = Child-Safe (default), 3 = General, 4 = Teen,
+   * 5 = Young Adult, 6 = None (no safety restrictions).
+   */
+  contentMaturityLevel?: number;
+  /**
+   * Topics blocked for this student's stories.
+   * Merged with classroom and global blocked-topic lists.
+   */
+  blockedTopics?: string[];
 }
 
 export function getStoredUsers(): StoredUser[] {
@@ -262,4 +318,55 @@ export function importStudentsFromCsv(csv: string): number {
 
   saveStoredUsers(users);
   return count;
+}
+
+/**
+ * Resolves the effective content-maturity level and blocked topics for a
+ * student by merging per-student, classroom, and global settings.
+ *
+ * Priority (highest → lowest):
+ *  1. Per-student override (`StoredUser.contentMaturityLevel` / `.blockedTopics`)
+ *  2. Classroom defaults (`ClassroomConfig`)
+ *  3. Global safety defaults (`Config.globalSafety`)
+ *  4. Hard-coded defaults (level 2, no blocked topics)
+ *
+ * Blocked topics are *accumulated* across all levels (global ∪ classroom ∪ student).
+ * The effective maturity level is clamped to the tightest applicable range.
+ */
+export function getEffectiveMaturitySettings(username: string): {
+  contentMaturityLevel: number;
+  blockedTopics: string[];
+} {
+  const config = getConfig();
+  const users = getStoredUsers();
+  const user = users.find((u) => u.username === username);
+
+  const globalSafety = config.globalSafety ?? {};
+  const globalLevel = globalSafety.contentMaturityLevel ?? MATURITY_LEVEL_DEFAULT;
+  const globalBlocked = globalSafety.blockedTopics ?? [];
+  const globalMin = globalSafety.maturityLevelRange?.min ?? 1;
+  const globalMax = globalSafety.maturityLevelRange?.max ?? 6;
+
+  // Find the classroom this user belongs to (first match wins)
+  const classroomEntry = Object.values(config.classrooms ?? {}).find(
+    (c) => c.members.includes(username),
+  );
+  const classroomLevel = classroomEntry?.contentMaturityLevel;
+  const classroomBlocked = classroomEntry?.blockedTopics ?? [];
+  const classroomMin = classroomEntry?.maturityLevelRange?.min ?? globalMin;
+  const classroomMax = classroomEntry?.maturityLevelRange?.max ?? globalMax;
+
+  // Effective range: intersection of global and classroom (tightest wins)
+  const effectiveMin = Math.max(globalMin, classroomMin);
+  const effectiveMax = Math.min(globalMax, classroomMax);
+
+  // Effective level: student > classroom > global default, clamped to effective range
+  const rawLevel = user?.contentMaturityLevel ?? classroomLevel ?? globalLevel;
+  const clampedLevel = Math.min(Math.max(effectiveMin, rawLevel), effectiveMax);
+
+  // Accumulated blocked topics (all levels merged, duplicates removed)
+  const studentBlocked = user?.blockedTopics ?? [];
+  const allBlocked = [...new Set([...globalBlocked, ...classroomBlocked, ...studentBlocked])];
+
+  return { contentMaturityLevel: clampedLevel, blockedTopics: allBlocked };
 }

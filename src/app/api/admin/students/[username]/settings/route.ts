@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import {
+  getConfig,
   getStoredUsers,
   updateStoredUser,
   StudentPreferences,
 } from '@/lib/storage';
 import { READING_LEVEL_VALUES, ReadingLevel } from '@/lib/reading-levels';
+import { MATURITY_LEVEL_MIN, MATURITY_LEVEL_MAX } from '@/lib/safety';
 
 export async function GET(
   _req: NextRequest,
@@ -27,6 +29,8 @@ export async function GET(
     readingLevel: storedUser.readingLevel ?? null,
     onboardingCompleted: storedUser.onboardingCompleted ?? false,
     preferences: storedUser.preferences ?? {},
+    contentMaturityLevel: storedUser.contentMaturityLevel ?? 2,
+    blockedTopics: storedUser.blockedTopics ?? [],
   });
 }
 
@@ -49,6 +53,8 @@ export async function POST(
     readingLevel?: string | null;
     onboardingCompleted?: boolean;
     preferences?: StudentPreferences;
+    contentMaturityLevel?: number;
+    blockedTopics?: string[];
   };
 
   const patch: Parameters<typeof updateStoredUser>[1] = {};
@@ -76,6 +82,28 @@ export async function POST(
       );
     }
     patch.preferences = prefs;
+  }
+
+  if (typeof body.contentMaturityLevel === 'number') {
+    const level = Math.round(body.contentMaturityLevel);
+    if (level < MATURITY_LEVEL_MIN || level > MATURITY_LEVEL_MAX) {
+      return NextResponse.json({ error: `contentMaturityLevel must be between ${MATURITY_LEVEL_MIN} and ${MATURITY_LEVEL_MAX}` }, { status: 400 });
+    }
+    // Validate against global range if set
+    const config = getConfig();
+    const globalRange = config.globalSafety?.maturityLevelRange;
+    if (globalRange) {
+      if (level < globalRange.min || level > globalRange.max) {
+        return NextResponse.json({
+          error: `contentMaturityLevel must be between ${globalRange.min} and ${globalRange.max} per global safety settings`,
+        }, { status: 400 });
+      }
+    }
+    patch.contentMaturityLevel = level;
+  }
+
+  if (Array.isArray(body.blockedTopics)) {
+    patch.blockedTopics = body.blockedTopics.filter((t): t is string => typeof t === 'string');
   }
 
   updateStoredUser(username, patch);
