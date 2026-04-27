@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getConfig, getStoredUsers, saveStory, StoryOptions } from '@/lib/storage';
+import { getConfig, getStoredUsers, getEffectiveMaturitySettings, saveStory, StoryOptions } from '@/lib/storage';
 import { generateStory } from '@/lib/openai';
 import { randomUUID } from 'crypto';
 
@@ -15,10 +15,8 @@ export async function POST(req: NextRequest) {
   const config = getConfig();
   const userCfg = config.userConfigs?.[user.username];
 
-  // Look up the student's stored reading level (set via CSV import)
-  const storedUser = getStoredUsers().find((u) => u.username === user.username);
-  const studentReadingLevel = storedUser?.readingLevel;
-  const contentMaturityLevel = storedUser?.contentMaturityLevel;
+  // Resolve effective maturity level and blocked topics from student/classroom/global settings
+  const { contentMaturityLevel, blockedTopics } = getEffectiveMaturitySettings(user.username);
 
   // Build effective story options: student-supplied values, overridden by admin locks
   const studentOptions: StoryOptions = {
@@ -35,9 +33,10 @@ export async function POST(req: NextRequest) {
 
   const effectiveOptions: StoryOptions = { ...studentOptions };
 
-  // Apply the student's profile reading level (from CSV import) automatically
-  if (studentReadingLevel) {
-    effectiveOptions.readingLevel = studentReadingLevel;
+  // Apply the student's profile reading level automatically
+  const storedUser = getStoredUsers().find((u) => u.username === user.username);
+  if (storedUser?.readingLevel) {
+    effectiveOptions.readingLevel = storedUser.readingLevel;
   }
 
   for (const field of lockedFields) {
@@ -57,6 +56,7 @@ export async function POST(req: NextRequest) {
       model: config.model,
       localModelId: config.localModelId,
       contentMaturityLevel,
+      blockedTopics,
     });
   } catch (err) {
     console.error('Story generation error:', err);

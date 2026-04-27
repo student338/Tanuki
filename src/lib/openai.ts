@@ -3,6 +3,7 @@ import type { StoryOptions } from './storage';
 /**
  * Admin-controlled content maturity descriptions injected into the system
  * prompt to restrict or allow themes in generated stories.
+ * Level 6 (None) intentionally has no entry — no safety clause is added.
  */
 const MATURITY_INSTRUCTIONS: Record<number, string> = {
   1: 'Write extremely safe, gentle content appropriate for very young children (ages 3-5). Use only uplifting, happy themes. Avoid all conflict, threats, scary imagery, or negative emotions.',
@@ -25,11 +26,17 @@ export interface GenerateOptions {
    */
   localModelId?: string;
   /**
-   * Admin-set content maturity level (1–5).  Appended to the system prompt
+   * Admin-set content maturity level (1–6).  Appended to the system prompt
    * to guide the model toward age-appropriate content.
+   * Level 6 = "None" (no safety clause added).
    * Defaults to 2 (child-safe) when not provided.
    */
   contentMaturityLevel?: number;
+  /**
+   * Topics to explicitly exclude from the generated story.
+   * Accumulated from global, classroom, and per-student settings.
+   */
+  blockedTopics?: string[];
 }
 
 function buildUserMessage(userRequest: string, opts?: StoryOptions): string {
@@ -57,16 +64,27 @@ function buildUserMessage(userRequest: string, opts?: StoryOptions): string {
 }
 
 export async function generateStory(options: GenerateOptions): Promise<string> {
-  const { systemPrompt, userRequest, storyOptions, apiBaseUrl, model, localModelId, contentMaturityLevel } = options;
+  const { systemPrompt, userRequest, storyOptions, apiBaseUrl, model, localModelId, contentMaturityLevel, blockedTopics } = options;
   const apiKey = process.env.OPENAI_API_KEY;
 
   const userMessage = buildUserMessage(userRequest, storyOptions);
 
-  const level = contentMaturityLevel !== undefined && contentMaturityLevel >= 1 && contentMaturityLevel <= 5
+  // Build effective system prompt with maturity and topic-blocking clauses
+  const promptParts: string[] = [systemPrompt];
+
+  const level = contentMaturityLevel !== undefined && contentMaturityLevel >= 1 && contentMaturityLevel <= 6
     ? contentMaturityLevel
     : 2;
-  const maturityInstruction = MATURITY_INSTRUCTIONS[level];
-  const effectiveSystemPrompt = `${systemPrompt}\n\nContent safety: ${maturityInstruction}`;
+  const maturityInstruction = MATURITY_INSTRUCTIONS[level]; // undefined for level 6 (None)
+  if (maturityInstruction) {
+    promptParts.push(`Content safety: ${maturityInstruction}`);
+  }
+
+  if (blockedTopics && blockedTopics.length > 0) {
+    promptParts.push(`Do not include content about the following topics: ${blockedTopics.join(', ')}.`);
+  }
+
+  const effectiveSystemPrompt = promptParts.join('\n\n');
 
   const chapterCount = storyOptions?.chapterCount ?? 1;
   // Allow unrestricted token output — ~420 tokens (~300 words) per chapter

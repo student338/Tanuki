@@ -10,8 +10,8 @@ export async function GET() {
   // Return students (omit passwords)
   const students = getStoredUsers()
     .filter((u) => u.role === 'student')
-    .map(({ username, role, readingLevel, onboardingCompleted, preferences, contentMaturityLevel }) => ({
-      username, role, readingLevel, onboardingCompleted, preferences, contentMaturityLevel,
+    .map(({ username, role, readingLevel, onboardingCompleted, preferences, contentMaturityLevel, blockedTopics }) => ({
+      username, role, readingLevel, onboardingCompleted, preferences, contentMaturityLevel, blockedTopics,
     }));
   return NextResponse.json(students);
 }

@@ -3,8 +3,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import StoryCard from '@/components/StoryCard';
-import { Story, LockableField, StoryDefaults } from '@/lib/storage';
+import { Story, LockableField, StoryDefaults, ClassroomConfig, GlobalSafetyConfig } from '@/lib/storage';
 import { ReadingLevel, READING_LEVEL_VALUES } from '@/lib/reading-levels';
+import {
+  PREDEFINED_BLOCKED_TOPICS,
+  MATURITY_LEVEL_INFO,
+  MATURITY_LEVEL_MIN,
+  MATURITY_LEVEL_MAX,
+  MATURITY_LEVEL_DEFAULT,
+} from '@/lib/safety';
 
 const LOCKABLE_FIELDS: { key: LockableField; label: string }[] = [
   { key: 'chapterCount', label: 'Chapter count' },
@@ -26,6 +33,7 @@ interface StudentInfo {
   onboardingCompleted?: boolean;
   preferences?: { theme?: string; favoriteGenres?: string[] };
   contentMaturityLevel?: number;
+  blockedTopics?: string[];
 }
 
 interface StudentAnalytics {
@@ -53,6 +61,17 @@ export default function AdminPage() {
   const [rlRangeMin, setRlRangeMin] = useState<ReadingLevel>('Pre-K');
   const [rlRangeMax, setRlRangeMax] = useState<ReadingLevel>('Doctorate');
   const [rlRangeError, setRlRangeError] = useState('');
+
+  // Global safety
+  const [globalSafety, setGlobalSafety] = useState<GlobalSafetyConfig>({});
+  const [globalSafetySaving, setGlobalSafetySaving] = useState(false);
+  const [globalSafetySaved, setGlobalSafetySaved] = useState(false);
+
+  // Classrooms
+  const [classrooms, setClassrooms] = useState<Record<string, ClassroomConfig>>({});
+  const [newClassroomName, setNewClassroomName] = useState('');
+  const [classroomsSaving, setClassroomsSaving] = useState(false);
+  const [classroomsSaved, setClassroomsSaved] = useState(false);
 
   // Student management
   const [students, setStudents] = useState<StudentInfo[]>([]);
@@ -100,11 +119,12 @@ export default function AdminPage() {
     setLocalModelId(cfg.localModelId ?? '');
     setUserConfigs(cfg.userConfigs ?? {});
     setStories(Array.isArray(storiesData) ? storiesData : []);
-    // Reading level range
     if (cfg.readingLevelRange) {
       setRlRangeMin(cfg.readingLevelRange.min ?? 'Pre-K');
       setRlRangeMax(cfg.readingLevelRange.max ?? 'Doctorate');
     }
+    setGlobalSafety(cfg.globalSafety ?? {});
+    setClassrooms(cfg.classrooms ?? {});
   }, [router]);
 
   useEffect(() => {
@@ -145,7 +165,58 @@ export default function AdminPage() {
     setTimeout(() => setSaved(false), 2000);
   }
 
-  async function handleSaveStudentSettings(username: string, readingLevel: ReadingLevel | null, resetOnboarding: boolean, contentMaturityLevel: number) {
+  async function handleSaveGlobalSafety() {
+    setGlobalSafetySaving(true);
+    await fetch('/api/admin/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ systemPrompt, globalSafety }),
+    });
+    setGlobalSafetySaving(false);
+    setGlobalSafetySaved(true);
+    setTimeout(() => setGlobalSafetySaved(false), 2000);
+  }
+
+  async function handleSaveClassrooms() {
+    setClassroomsSaving(true);
+    await fetch('/api/admin/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ systemPrompt, classrooms }),
+    });
+    setClassroomsSaving(false);
+    setClassroomsSaved(true);
+    setTimeout(() => setClassroomsSaved(false), 2000);
+  }
+
+  function handleAddClassroom() {
+    const name = newClassroomName.trim();
+    if (!name) return;
+    const id = Math.random().toString(36).slice(2, 10);
+    setClassrooms((prev) => ({ ...prev, [id]: { name, members: [] } }));
+    setNewClassroomName('');
+  }
+
+  function handleDeleteClassroom(id: string) {
+    if (!confirm(`Delete classroom "${classrooms[id]?.name}"?`)) return;
+    setClassrooms((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }
+
+  function updateClassroom(id: string, patch: Partial<ClassroomConfig>) {
+    setClassrooms((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  }
+
+  async function handleSaveStudentSettings(
+    username: string,
+    readingLevel: ReadingLevel | null,
+    resetOnboarding: boolean,
+    contentMaturityLevel: number,
+    blockedTopics: string[],
+  ) {
     setSettingsSaving(true);
     setSettingsMsg('');
     const res = await fetch(`/api/admin/students/${encodeURIComponent(username)}/settings`, {
@@ -154,6 +225,7 @@ export default function AdminPage() {
       body: JSON.stringify({
         readingLevel: readingLevel ?? null,
         contentMaturityLevel,
+        blockedTopics,
         ...(resetOnboarding ? { onboardingCompleted: false } : {}),
       }),
     });
@@ -164,7 +236,8 @@ export default function AdminPage() {
       loadStudents();
       loadAnalytics();
     } else {
-      setSettingsMsg('Save failed');
+      const d = await res.json().catch(() => ({}));
+      setSettingsMsg(d.error ?? 'Save failed');
     }
   }
 
@@ -263,6 +336,10 @@ export default function AdminPage() {
     reader.onload = (ev) => setCsvText((ev.target?.result as string) ?? '');
     reader.readAsText(file);
   }
+
+  // Derive the effective global maturity range for constraining per-student sliders
+  const effectiveGlobalMin = globalSafety.maturityLevelRange?.min ?? MATURITY_LEVEL_MIN;
+  const effectiveGlobalMax = globalSafety.maturityLevelRange?.max ?? MATURITY_LEVEL_MAX;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-zinc-900 text-white">
@@ -602,16 +679,146 @@ export default function AdminPage() {
           </div>
         </section>
 
+        {/* ── Global Safety Defaults ───────────────────────────────────────── */}
+        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-5">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <span>🛡️</span> Global Safety Defaults
+          </h2>
+          <p className="text-sm text-gray-400">
+            Set school-wide defaults for content maturity and topic blocking. These apply to every
+            student unless overridden by a classroom or per-student setting. The allowed range also
+            constrains what values can be set anywhere in the system.
+          </p>
+
+          {/* Global maturity level range lock */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-300 mb-3">Allowed maturity level range</h3>
+            <p className="text-xs text-gray-500 mb-3">
+              Locks the system so no student or classroom can be assigned a level outside this range.
+              Setting max to &ldquo;None (6)&rdquo; allows unrestricted content for eligible students.
+            </p>
+            <MaturityRangePicker
+              min={globalSafety.maturityLevelRange?.min ?? MATURITY_LEVEL_MIN}
+              max={globalSafety.maturityLevelRange?.max ?? MATURITY_LEVEL_MAX}
+              onChange={(min, max) =>
+                setGlobalSafety((prev) => ({ ...prev, maturityLevelRange: { min, max } }))
+              }
+            />
+          </div>
+
+          {/* Global default maturity level */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-300 mb-2">Default maturity level</h3>
+            <p className="text-xs text-gray-500 mb-3">
+              Applied to students with no classroom or per-student maturity setting.
+            </p>
+            <MaturitySlider
+              value={globalSafety.contentMaturityLevel ?? MATURITY_LEVEL_DEFAULT}
+              min={globalSafety.maturityLevelRange?.min ?? MATURITY_LEVEL_MIN}
+              max={globalSafety.maturityLevelRange?.max ?? MATURITY_LEVEL_MAX}
+              onChange={(v) => setGlobalSafety((prev) => ({ ...prev, contentMaturityLevel: v }))}
+            />
+          </div>
+
+          {/* Global blocked topics */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-300 mb-2">Globally blocked topics</h3>
+            <p className="text-xs text-gray-500 mb-3">
+              These topics are blocked for <strong>all</strong> students regardless of any other settings.
+            </p>
+            <BlockedTopicsPicker
+              value={globalSafety.blockedTopics ?? []}
+              onChange={(topics) => setGlobalSafety((prev) => ({ ...prev, blockedTopics: topics }))}
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSaveGlobalSafety}
+              disabled={globalSafetySaving}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2 rounded-xl transition-colors disabled:opacity-50"
+            >
+              {globalSafetySaving ? 'Saving...' : 'Save Global Safety'}
+            </button>
+            {globalSafetySaved && <span className="text-green-400 text-sm">✓ Saved!</span>}
+          </div>
+        </section>
+
+        {/* ── Classrooms ───────────────────────────────────────────────────── */}
+        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-5">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <span>🏫</span> Classrooms
+          </h2>
+          <p className="text-sm text-gray-400">
+            Group students into classrooms and apply shared safety settings. Per-student settings
+            always take precedence over classroom settings; classroom settings take precedence over
+            global defaults.
+          </p>
+
+          {/* Create classroom */}
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={newClassroomName}
+              onChange={(e) => setNewClassroomName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddClassroom(); } }}
+              placeholder="New classroom name"
+              className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+            />
+            <button
+              onClick={handleAddClassroom}
+              disabled={!newClassroomName.trim()}
+              className="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded-xl transition-colors disabled:opacity-50 whitespace-nowrap"
+            >
+              Add Classroom
+            </button>
+          </div>
+
+          {Object.keys(classrooms).length === 0 ? (
+            <p className="text-gray-500 text-sm">No classrooms yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {Object.entries(classrooms).map(([id, cfg]) => (
+                <ClassroomRow
+                  key={id}
+                  id={id}
+                  config={cfg}
+                  allStudents={students.map((s) => s.username)}
+                  globalMin={effectiveGlobalMin}
+                  globalMax={effectiveGlobalMax}
+                  onChange={(patch) => updateClassroom(id, patch)}
+                  onDelete={() => handleDeleteClassroom(id)}
+                />
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSaveClassrooms}
+              disabled={classroomsSaving}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2 rounded-xl transition-colors disabled:opacity-50"
+            >
+              {classroomsSaving ? 'Saving...' : 'Save Classrooms'}
+            </button>
+            {classroomsSaved && <span className="text-green-400 text-sm">✓ Saved!</span>}
+          </div>
+        </section>
+
         {/* Student Onboarding Settings */}
         <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <span>🎓</span> Student Onboarding &amp; Settings
           </h2>
           <p className="text-sm text-gray-400">
-            View and override individual student reading levels and preferences, or reset their
-            onboarding so they are prompted again on next login.
+            View and override individual student reading levels, content maturity, and blocked topics.
+            Per-student settings override classroom and global defaults.
           </p>
-          {settingsMsg && <p className="text-green-400 text-sm">✓ {settingsMsg}</p>}
+          {settingsMsg && (
+            <p className={`text-sm ${settingsMsg.includes('fail') || settingsMsg.includes('must') ? 'text-red-400' : 'text-green-400'}`}>
+              {settingsMsg.includes('fail') || settingsMsg.includes('must') ? settingsMsg : `✓ ${settingsMsg}`}
+            </p>
+          )}
           {students.length === 0 ? (
             <p className="text-gray-500 text-sm">No students enrolled yet.</p>
           ) : (
@@ -621,9 +828,11 @@ export default function AdminPage() {
                   key={s.username}
                   student={s}
                   saving={settingsSaving && editingSettings === s.username}
-                  onSave={(rl, reset, maturityLevel) => {
+                  globalMin={effectiveGlobalMin}
+                  globalMax={effectiveGlobalMax}
+                  onSave={(rl, reset, maturityLevel, blockedTopics) => {
                     setEditingSettings(s.username);
-                    handleSaveStudentSettings(s.username, rl, reset, maturityLevel);
+                    handleSaveStudentSettings(s.username, rl, reset, maturityLevel, blockedTopics);
                   }}
                 />
               ))}
@@ -725,29 +934,190 @@ export default function AdminPage() {
   );
 }
 
-// ── Helper sub-component: per-student settings row ─────────────────────────
+// ── Reusable sub-components ─────────────────────────────────────────────────
 
-const MATURITY_LABELS: Record<number, { label: string; emoji: string; description: string }> = {
-  1: { label: 'Very Safe', emoji: '🌱', description: 'Gentle content for very young children (ages 3-5)' },
-  2: { label: 'Child-Safe', emoji: '🧒', description: 'Standard children\'s content (ages 6-10)' },
-  3: { label: 'General', emoji: '📚', description: 'Mild adventure for preteens (ages 10-13)' },
-  4: { label: 'Teen', emoji: '🎒', description: 'Teen-appropriate themes (ages 13-17)' },
-  5: { label: 'Young Adult', emoji: '🎓', description: 'Complex themes for young adults (ages 16+)' },
-};
-
-interface StudentSettingsRowProps {
-  student: StudentInfo;
-  saving: boolean;
-  onSave: (readingLevel: ReadingLevel | null, resetOnboarding: boolean, contentMaturityLevel: number) => void;
+/** Renders a range input + tick labels for a maturity level slider. */
+function MaturitySlider({
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+}) {
+  const info = MATURITY_LEVEL_INFO[value] ?? MATURITY_LEVEL_INFO[MATURITY_LEVEL_DEFAULT];
+  const ticks = Array.from({ length: max - min + 1 }, (_, i) => min + i);
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-sm font-medium text-purple-300">{info.emoji} {info.label}</span>
+        {value === MATURITY_LEVEL_MAX && (
+          <span className="text-xs bg-red-500/20 text-red-300 border border-red-400/30 px-2 py-0.5 rounded-full">
+            No restrictions
+          </span>
+        )}
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={1}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-purple-500 cursor-pointer"
+      />
+      <div className="flex mt-1" style={{ justifyContent: ticks.length > 1 ? 'space-between' : 'flex-start' }}>
+        {ticks.map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onChange(n)}
+            className={`text-xs text-center transition-colors ${value === n ? 'text-purple-300 font-semibold' : 'text-gray-500 hover:text-gray-300'}`}
+            style={{ width: `${100 / ticks.length}%` }}
+          >
+            {MATURITY_LEVEL_INFO[n]?.emoji}
+            <br />
+            <span className="hidden sm:inline">{MATURITY_LEVEL_INFO[n]?.label}</span>
+          </button>
+        ))}
+      </div>
+      <p className="mt-1 text-xs text-gray-500">{info.description}</p>
+    </div>
+  );
 }
 
-function StudentSettingsRow({ student, saving, onSave }: StudentSettingsRowProps) {
-  const [expanded, setExpanded] = useState(false);
-  const [readingLevel, setReadingLevel] = useState<ReadingLevel | ''>(student.readingLevel ?? '');
-  const [resetOnboarding, setResetOnboarding] = useState(false);
-  const [maturityLevel, setMaturityLevel] = useState<number>(student.contentMaturityLevel ?? 2);
+/** Min/max range picker using two sliders. */
+function MaturityRangePicker({
+  min,
+  max,
+  onChange,
+}: {
+  min: number;
+  max: number;
+  onChange: (min: number, max: number) => void;
+}) {
+  const minInfo = MATURITY_LEVEL_INFO[min];
+  const maxInfo = MATURITY_LEVEL_INFO[max];
+  return (
+    <div className="flex flex-wrap items-center gap-6">
+      <div className="flex-1 min-w-[180px]">
+        <label className="block text-xs text-gray-400 mb-1">
+          Minimum allowed: <span className="text-purple-300">{minInfo?.emoji} {minInfo?.label}</span>
+        </label>
+        <input
+          type="range"
+          min={MATURITY_LEVEL_MIN}
+          max={max}
+          step={1}
+          value={min}
+          onChange={(e) => onChange(Number(e.target.value), max)}
+          className="w-full accent-purple-500 cursor-pointer"
+        />
+      </div>
+      <span className="text-gray-500 text-sm">→</span>
+      <div className="flex-1 min-w-[180px]">
+        <label className="block text-xs text-gray-400 mb-1">
+          Maximum allowed: <span className="text-purple-300">{maxInfo?.emoji} {maxInfo?.label}</span>
+          {max === MATURITY_LEVEL_MAX && (
+            <span className="ml-1 text-red-400">(includes None)</span>
+          )}
+        </label>
+        <input
+          type="range"
+          min={min}
+          max={MATURITY_LEVEL_MAX}
+          step={1}
+          value={max}
+          onChange={(e) => onChange(min, Number(e.target.value))}
+          className="w-full accent-purple-500 cursor-pointer"
+        />
+      </div>
+    </div>
+  );
+}
 
-  const maturityInfo = MATURITY_LABELS[maturityLevel];
+/** Checkbox grid for predefined blocked topics + a custom freeform field. */
+function BlockedTopicsPicker({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (topics: string[]) => void;
+}) {
+  const predefinedSet = new Set(PREDEFINED_BLOCKED_TOPICS as readonly string[]);
+  const customTopics = value.filter((t) => !predefinedSet.has(t));
+  const [customInput, setCustomInput] = useState(customTopics.join(', '));
+
+  function toggleTopic(topic: string) {
+    const next = value.includes(topic) ? value.filter((t) => t !== topic) : [...value, topic];
+    onChange(next);
+  }
+
+  function handleCustomChange(raw: string) {
+    setCustomInput(raw);
+    const custom = raw
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const predefined = value.filter((t) => predefinedSet.has(t));
+    onChange([...predefined, ...custom]);
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {PREDEFINED_BLOCKED_TOPICS.map((topic) => (
+          <label key={topic} className="flex items-center gap-2 cursor-pointer select-none text-sm">
+            <input
+              type="checkbox"
+              checked={value.includes(topic)}
+              onChange={() => toggleTopic(topic)}
+              className="w-4 h-4 rounded accent-red-400"
+            />
+            <span>{topic}</span>
+          </label>
+        ))}
+      </div>
+      <div>
+        <label className="block text-xs text-gray-400 mb-1">Additional custom topics (comma-separated)</label>
+        <input
+          type="text"
+          value={customInput}
+          onChange={(e) => handleCustomChange(e.target.value)}
+          placeholder="e.g. Astrology, Crypto, Social Drama"
+          className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Classroom row ────────────────────────────────────────────────────────────
+
+interface ClassroomRowProps {
+  id: string;
+  config: ClassroomConfig;
+  allStudents: string[];
+  globalMin: number;
+  globalMax: number;
+  onChange: (patch: Partial<ClassroomConfig>) => void;
+  onDelete: () => void;
+}
+
+function ClassroomRow({ config, allStudents, globalMin, globalMax, onChange, onDelete }: ClassroomRowProps) {
+  const [expanded, setExpanded] = useState(false);
+  const effectiveMin = Math.max(globalMin, config.maturityLevelRange?.min ?? globalMin);
+  const effectiveMax = Math.min(globalMax, config.maturityLevelRange?.max ?? globalMax);
+
+  function toggleMember(username: string) {
+    const members = config.members.includes(username)
+      ? config.members.filter((m) => m !== username)
+      : [...config.members, username];
+    onChange({ members });
+  }
 
   return (
     <div className="border border-white/10 rounded-2xl overflow-hidden">
@@ -757,6 +1127,136 @@ function StudentSettingsRow({ student, saving, onSave }: StudentSettingsRowProps
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors text-left"
       >
         <span className="flex items-center gap-2 text-sm font-medium">
+          🏫 <span className="font-bold">{config.name}</span>
+          <span className="text-xs text-gray-400">
+            {config.members.length} student{config.members.length !== 1 ? 's' : ''}
+          </span>
+          {config.contentMaturityLevel !== undefined && (
+            <span className="text-xs bg-purple-500/20 text-purple-300 border border-purple-400/30 px-2 py-0.5 rounded-full">
+              {MATURITY_LEVEL_INFO[config.contentMaturityLevel]?.emoji} {MATURITY_LEVEL_INFO[config.contentMaturityLevel]?.label}
+            </span>
+          )}
+          {config.blockedTopics && config.blockedTopics.length > 0 && (
+            <span className="text-xs bg-red-500/20 text-red-300 border border-red-400/30 px-2 py-0.5 rounded-full">
+              🚫 {config.blockedTopics.length} topic{config.blockedTopics.length !== 1 ? 's' : ''} blocked
+            </span>
+          )}
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="text-xs text-red-400 hover:text-red-300 border border-red-400/30 px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
+          >
+            Delete
+          </button>
+          <span className="text-gray-400 text-sm">{expanded ? '▲' : '▼'}</span>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-5 space-y-5 border-t border-white/10 pt-4">
+          {/* Members */}
+          <div>
+            <h4 className="text-xs font-medium text-gray-400 mb-2">Members</h4>
+            {allStudents.length === 0 ? (
+              <p className="text-xs text-gray-500">No students enrolled yet.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {allStudents.map((username) => (
+                  <label key={username} className="flex items-center gap-2 cursor-pointer select-none text-sm">
+                    <input
+                      type="checkbox"
+                      checked={config.members.includes(username)}
+                      onChange={() => toggleMember(username)}
+                      className="w-4 h-4 rounded accent-indigo-400"
+                    />
+                    <span>👤 {username}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Maturity level range for this classroom */}
+          <div>
+            <h4 className="text-xs font-medium text-gray-400 mb-2">Allowed maturity range for this classroom</h4>
+            <p className="text-xs text-gray-500 mb-2">
+              Overrides the global range for members of this classroom (cannot exceed global bounds).
+            </p>
+            <MaturityRangePicker
+              min={effectiveMin}
+              max={effectiveMax}
+              onChange={(min, max) => {
+                const clampedMin = Math.max(globalMin, min);
+                const clampedMax = Math.min(globalMax, max);
+                onChange({ maturityLevelRange: { min: clampedMin, max: clampedMax } });
+              }}
+            />
+          </div>
+
+          {/* Default maturity level */}
+          <div>
+            <h4 className="text-xs font-medium text-gray-400 mb-2">Default maturity level</h4>
+            <MaturitySlider
+              value={config.contentMaturityLevel ?? effectiveMin}
+              min={effectiveMin}
+              max={effectiveMax}
+              onChange={(v) => onChange({ contentMaturityLevel: v })}
+            />
+          </div>
+
+          {/* Blocked topics */}
+          <div>
+            <h4 className="text-xs font-medium text-gray-400 mb-2">Blocked topics for this classroom</h4>
+            <p className="text-xs text-gray-500 mb-2">
+              Merged with globally blocked topics. Per-student blocked topics are also merged in.
+            </p>
+            <BlockedTopicsPicker
+              value={config.blockedTopics ?? []}
+              onChange={(topics) => onChange({ blockedTopics: topics })}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Per-student settings row ─────────────────────────────────────────────────
+
+interface StudentSettingsRowProps {
+  student: StudentInfo;
+  saving: boolean;
+  globalMin: number;
+  globalMax: number;
+  onSave: (
+    readingLevel: ReadingLevel | null,
+    resetOnboarding: boolean,
+    contentMaturityLevel: number,
+    blockedTopics: string[],
+  ) => void;
+}
+
+function StudentSettingsRow({ student, saving, globalMin, globalMax, onSave }: StudentSettingsRowProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [readingLevel, setReadingLevel] = useState<ReadingLevel | ''>(student.readingLevel ?? '');
+  const [resetOnboarding, setResetOnboarding] = useState(false);
+  const [maturityLevel, setMaturityLevel] = useState<number>(
+    Math.min(Math.max(student.contentMaturityLevel ?? MATURITY_LEVEL_DEFAULT, globalMin), globalMax),
+  );
+  const [blockedTopics, setBlockedTopics] = useState<string[]>(student.blockedTopics ?? []);
+
+  const maturityInfo = MATURITY_LEVEL_INFO[maturityLevel] ?? MATURITY_LEVEL_INFO[MATURITY_LEVEL_DEFAULT];
+
+  return (
+    <div className="border border-white/10 rounded-2xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors text-left"
+      >
+        <span className="flex items-center gap-2 text-sm font-medium flex-wrap">
           👤 {student.username}
           {student.readingLevel && (
             <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full">
@@ -766,6 +1266,11 @@ function StudentSettingsRow({ student, saving, onSave }: StudentSettingsRowProps
           <span className="text-xs bg-purple-500/20 text-purple-300 border border-purple-400/30 px-2 py-0.5 rounded-full">
             {maturityInfo.emoji} {maturityInfo.label}
           </span>
+          {blockedTopics.length > 0 && (
+            <span className="text-xs bg-red-500/20 text-red-300 border border-red-400/30 px-2 py-0.5 rounded-full">
+              🚫 {blockedTopics.length}
+            </span>
+          )}
           {student.onboardingCompleted ? (
             <span className="text-xs text-green-400">✓ Onboarded</span>
           ) : (
@@ -776,7 +1281,7 @@ function StudentSettingsRow({ student, saving, onSave }: StudentSettingsRowProps
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 space-y-4 border-t border-white/10 pt-3">
+        <div className="px-4 pb-5 space-y-5 border-t border-white/10 pt-4">
           <div className="flex flex-wrap items-start gap-6">
             <div>
               <label className="block text-xs text-gray-400 mb-1">Override reading level</label>
@@ -804,41 +1309,26 @@ function StudentSettingsRow({ student, saving, onSave }: StudentSettingsRowProps
 
           {/* Content maturity slider */}
           <div>
-            <label className="block text-xs text-gray-400 mb-3">
-              Content maturity
-              <span className="ml-2 text-purple-300 font-medium">{maturityInfo.emoji} {maturityInfo.label}</span>
+            <label className="block text-xs text-gray-400 mb-3">Content maturity</label>
+            <MaturitySlider
+              value={maturityLevel}
+              min={globalMin}
+              max={globalMax}
+              onChange={setMaturityLevel}
+            />
+          </div>
+
+          {/* Per-student blocked topics */}
+          <div>
+            <label className="block text-xs text-gray-400 mb-2">
+              Additional blocked topics for this student
+              <span className="ml-1 text-gray-500">(merged with classroom and global blocks)</span>
             </label>
-            <div className="px-1">
-              <input
-                type="range"
-                min={1}
-                max={5}
-                step={1}
-                value={maturityLevel}
-                onChange={(e) => setMaturityLevel(Number(e.target.value))}
-                className="w-full accent-purple-500 cursor-pointer"
-              />
-              <div className="flex justify-between mt-1">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setMaturityLevel(n)}
-                    className={`text-xs text-center transition-colors ${maturityLevel === n ? 'text-purple-300 font-semibold' : 'text-gray-500 hover:text-gray-300'}`}
-                    style={{ width: '20%' }}
-                  >
-                    {MATURITY_LABELS[n].emoji}
-                    <br />
-                    {MATURITY_LABELS[n].label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-gray-500">{maturityInfo.description}</p>
+            <BlockedTopicsPicker value={blockedTopics} onChange={setBlockedTopics} />
           </div>
 
           <button
-            onClick={() => onSave(readingLevel || null, resetOnboarding, maturityLevel)}
+            onClick={() => onSave(readingLevel || null, resetOnboarding, maturityLevel, blockedTopics)}
             disabled={saving}
             className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2 rounded-xl transition-colors disabled:opacity-50 text-sm"
           >

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getConfig, saveConfig, Config } from '@/lib/storage';
+import { getConfig, saveConfig, Config, ClassroomConfig, GlobalSafetyConfig } from '@/lib/storage';
 import { READING_LEVEL_VALUES } from '@/lib/reading-levels';
+import { MATURITY_LEVEL_MIN, MATURITY_LEVEL_MAX } from '@/lib/safety';
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -66,6 +67,85 @@ export async function POST(req: NextRequest) {
       updated.readingLevelRange = { min: body.readingLevelRange.min, max: body.readingLevelRange.max };
     } else {
       updated.readingLevelRange = undefined;
+    }
+  }
+
+  if ('globalSafety' in body) {
+    if (body.globalSafety === null || body.globalSafety === undefined) {
+      updated.globalSafety = undefined;
+    } else if (typeof body.globalSafety === 'object') {
+      const gs = body.globalSafety as Record<string, unknown>;
+      const globalSafety: GlobalSafetyConfig = {};
+
+      if (typeof gs.contentMaturityLevel === 'number') {
+        const lvl = Math.round(gs.contentMaturityLevel);
+        if (lvl < MATURITY_LEVEL_MIN || lvl > MATURITY_LEVEL_MAX) {
+          return NextResponse.json({ error: 'globalSafety.contentMaturityLevel out of range' }, { status: 400 });
+        }
+        globalSafety.contentMaturityLevel = lvl;
+      }
+
+      if (Array.isArray(gs.blockedTopics)) {
+        globalSafety.blockedTopics = gs.blockedTopics.filter((t): t is string => typeof t === 'string');
+      }
+
+      if (typeof gs.maturityLevelRange === 'object' && gs.maturityLevelRange !== null) {
+        const range = gs.maturityLevelRange as Record<string, unknown>;
+        if (typeof range.min === 'number' && typeof range.max === 'number') {
+          const min = Math.round(range.min);
+          const max = Math.round(range.max);
+          if (min < MATURITY_LEVEL_MIN || max > MATURITY_LEVEL_MAX || min > max) {
+            return NextResponse.json({ error: 'Invalid globalSafety.maturityLevelRange' }, { status: 400 });
+          }
+          globalSafety.maturityLevelRange = { min, max };
+        }
+      }
+
+      updated.globalSafety = globalSafety;
+    }
+  }
+
+  if ('classrooms' in body) {
+    if (body.classrooms === null || body.classrooms === undefined) {
+      updated.classrooms = undefined;
+    } else if (typeof body.classrooms === 'object') {
+      const classrooms: Record<string, ClassroomConfig> = {};
+      for (const [id, rawCfg] of Object.entries(body.classrooms as Record<string, unknown>)) {
+        if (!rawCfg || typeof rawCfg !== 'object') continue;
+        const cfg = rawCfg as Record<string, unknown>;
+        if (typeof cfg.name !== 'string' || !cfg.name.trim()) continue;
+        const classroom: ClassroomConfig = {
+          name: cfg.name.trim(),
+          members: Array.isArray(cfg.members)
+            ? cfg.members.filter((m): m is string => typeof m === 'string')
+            : [],
+        };
+
+        if (typeof cfg.contentMaturityLevel === 'number') {
+          const lvl = Math.round(cfg.contentMaturityLevel);
+          if (lvl >= MATURITY_LEVEL_MIN && lvl <= MATURITY_LEVEL_MAX) {
+            classroom.contentMaturityLevel = lvl;
+          }
+        }
+
+        if (Array.isArray(cfg.blockedTopics)) {
+          classroom.blockedTopics = cfg.blockedTopics.filter((t): t is string => typeof t === 'string');
+        }
+
+        if (typeof cfg.maturityLevelRange === 'object' && cfg.maturityLevelRange !== null) {
+          const range = cfg.maturityLevelRange as Record<string, unknown>;
+          if (typeof range.min === 'number' && typeof range.max === 'number') {
+            const min = Math.round(range.min);
+            const max = Math.round(range.max);
+            if (min >= MATURITY_LEVEL_MIN && max <= MATURITY_LEVEL_MAX && min <= max) {
+              classroom.maturityLevelRange = { min, max };
+            }
+          }
+        }
+
+        classrooms[id] = classroom;
+      }
+      updated.classrooms = classrooms;
     }
   }
 
