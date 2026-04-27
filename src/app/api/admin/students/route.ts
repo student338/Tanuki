@@ -10,7 +10,9 @@ export async function GET() {
   // Return students (omit passwords)
   const students = getStoredUsers()
     .filter((u) => u.role === 'student')
-    .map(({ username, role, readingLevel }) => ({ username, role, readingLevel }));
+    .map(({ username, role, readingLevel, onboardingCompleted, preferences }) => ({
+      username, role, readingLevel, onboardingCompleted, preferences,
+    }));
   return NextResponse.json(students);
 }
 

@@ -47,6 +47,19 @@ export async function POST(req: NextRequest) {
       : undefined;
   }
 
+  if ('readingLevelRange' in body) {
+    if (
+      body.readingLevelRange !== null &&
+      typeof body.readingLevelRange === 'object' &&
+      typeof body.readingLevelRange.min === 'string' &&
+      typeof body.readingLevelRange.max === 'string'
+    ) {
+      updated.readingLevelRange = { min: body.readingLevelRange.min, max: body.readingLevelRange.max };
+    } else {
+      updated.readingLevelRange = undefined;
+    }
+  }
+
   saveConfig(updated);
   return NextResponse.json({ ok: true });
 }
