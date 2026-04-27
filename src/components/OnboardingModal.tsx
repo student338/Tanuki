@@ -37,6 +37,10 @@ const THEME_OPTIONS = [
   { id: 'sepia', label: 'Sepia', icon: '📜' },
   { id: 'orbs-white', label: 'Orbs / White', icon: '🔮' },
   { id: 'orbs-black', label: 'Orbs / Black', icon: '✨' },
+  { id: 'forest', label: 'Forest', icon: '🌿' },
+  { id: 'ocean', label: 'Ocean', icon: '🌊' },
+  { id: 'sunset', label: 'Sunset', icon: '🌅' },
+  { id: 'midnight', label: 'Midnight', icon: '🌌' },
 ];
 
 interface OnboardingModalProps {
