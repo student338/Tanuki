@@ -217,7 +217,7 @@ if "%LLAMA_INST%"=="1" (
     echo     NVIDIA:  set CMAKE_ARGS=-DGGML_CUDA=on
     echo     AMD:     set CMAKE_ARGS=-DGGML_HIPBLAS=on
     echo.
-    %PY_CMD% -m pip install "llama-cpp-python[server]"
+    %PY_CMD% -m pip install --prefer-binary "llama-cpp-python[server]"
     if errorlevel 1 (
         echo   X  llama-cpp-python installation failed.
         pause
@@ -293,6 +293,9 @@ if not errorlevel 1 (
         echo   OK  Model already downloaded: models\!GGUF_FILE!
     )
     set GGUF_FILE=models\!GGUF_FILE!
+) else (
+    :: Local path -- use as-is
+    set GGUF_FILE=!GGUF_URL!
 )
 
 set /p LLAMA_PORT="llama.cpp server port [8080]: "

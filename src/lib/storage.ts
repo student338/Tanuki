@@ -8,6 +8,8 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 const STORIES_FILE = path.join(DATA_DIR, 'stories.json');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const RECORDINGS_FILE = path.join(DATA_DIR, 'recordings.json');
+export const RECORDINGS_DIR = path.join(DATA_DIR, 'recordings');
 
 const DEFAULT_SYSTEM_PROMPT =
   'You are a creative story writer. Write an engaging, age-appropriate story based on the student\'s request.';
@@ -331,6 +333,51 @@ export function importStudentsFromCsv(csv: string): number {
   return count;
 }
 
+// ── Audio recordings ─────────────────────────────────────────────────────────
+
+/** Metadata for an audio recording made by a student while reading a story page. */
+export interface Recording {
+  id: string;
+  storyId: string;
+  username: string;
+  /** 0-based page index within the paginated story. */
+  pageNumber: number;
+  /** Filename (without directory) of the stored audio file. */
+  filename: string;
+  createdAt: string;
+}
+
+export function getRecordings(): Recording[] {
+  ensureDataDir();
+  if (!fs.existsSync(RECORDINGS_FILE)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(RECORDINGS_FILE, 'utf-8')) as Recording[];
+  } catch {
+    console.error('Failed to parse recordings.json — returning empty list');
+    return [];
+  }
+}
+
+export function getRecordingsForStory(storyId: string): Recording[] {
+  return getRecordings().filter((r) => r.storyId === storyId);
+}
+
+export function saveRecordingMeta(recording: Recording): void {
+  ensureDataDir();
+  const all = getRecordings();
+  all.push(recording);
+  fs.writeFileSync(RECORDINGS_FILE, JSON.stringify(all, null, 2));
+}
+
+export function deleteRecordingMeta(id: string): Recording | null {
+  const all = getRecordings();
+  const idx = all.findIndex((r) => r.id === id);
+  if (idx === -1) return null;
+  const [removed] = all.splice(idx, 1);
+  fs.writeFileSync(RECORDINGS_FILE, JSON.stringify(all, null, 2));
+  return removed;
+}
+
 /**
  * Resolves the effective content-maturity level and blocked topics for a
  * student by merging per-student, classroom, and global settings.
@@ -380,4 +427,26 @@ export function getEffectiveMaturitySettings(username: string): {
   const allBlocked = [...new Set([...globalBlocked, ...classroomBlocked, ...studentBlocked])];
 
   return { contentMaturityLevel: clampedLevel, blockedTopics: allBlocked };
+}
+
+/**
+ * Returns the allowed maturity-level range for a given student, taking into
+ * account the global safety range and any classroom-level range restriction.
+ */
+export function getEffectiveMaturityRange(username: string): { min: number; max: number } {
+  const config = getConfig();
+  const globalSafety = config.globalSafety ?? {};
+  const globalMin = globalSafety.maturityLevelRange?.min ?? 1;
+  const globalMax = globalSafety.maturityLevelRange?.max ?? 6;
+
+  const classroomEntry = Object.values(config.classrooms ?? {}).find(
+    (c) => c.members.includes(username),
+  );
+  const classroomMin = classroomEntry?.maturityLevelRange?.min ?? globalMin;
+  const classroomMax = classroomEntry?.maturityLevelRange?.max ?? globalMax;
+
+  return {
+    min: Math.max(globalMin, classroomMin),
+    max: Math.min(globalMax, classroomMax),
+  };
 }

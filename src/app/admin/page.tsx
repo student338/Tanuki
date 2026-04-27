@@ -86,6 +86,17 @@ export default function AdminPage() {
   // Analytics
   const [analytics, setAnalytics] = useState<StudentAnalytics[]>([]);
 
+  // Recordings
+  interface RecordingInfo {
+    id: string;
+    storyId: string;
+    username: string;
+    pageNumber: number;
+    filename: string;
+    createdAt: string;
+  }
+  const [recordings, setRecordings] = useState<RecordingInfo[]>([]);
+
   // Student settings management (per-user)
   const [editingSettings, setEditingSettings] = useState<string | null>(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
@@ -105,6 +116,16 @@ export default function AdminPage() {
     setAnalytics(Array.isArray(data) ? data : []);
   }, []);
 
+  const loadRecordings = useCallback(async (storyList: Story[]) => {
+    if (storyList.length === 0) return;
+    const results = await Promise.all(
+      storyList.map((s) =>
+        fetch(`/api/stories/${s.id}/recordings`).then((r) => r.ok ? r.json() : []),
+      ),
+    );
+    setRecordings(results.flat());
+  }, []);
+
   const load = useCallback(async () => {
     const [cfgRes, storyRes] = await Promise.all([
       fetch('/api/admin/config'),
@@ -118,13 +139,23 @@ export default function AdminPage() {
     setModel(cfg.model ?? '');
     setLocalModelId(cfg.localModelId ?? '');
     setUserConfigs(cfg.userConfigs ?? {});
-    setStories(Array.isArray(storiesData) ? storiesData : []);
+    const storyList = Array.isArray(storiesData) ? storiesData : [];
+    setStories(storyList);
     if (cfg.readingLevelRange) {
       setRlRangeMin(cfg.readingLevelRange.min ?? 'Pre-K');
       setRlRangeMax(cfg.readingLevelRange.max ?? 'Doctorate');
     }
     setGlobalSafety(cfg.globalSafety ?? {});
     setClassrooms(cfg.classrooms ?? {});
+    // Load recordings separately after stories are known
+    if (storyList.length > 0) {
+      const results = await Promise.all(
+        storyList.map((s: Story) =>
+          fetch(`/api/stories/${s.id}/recordings`).then((r) => r.ok ? r.json() : []),
+        ),
+      );
+      setRecordings(results.flat());
+    }
   }, [router]);
 
   useEffect(() => {
@@ -901,6 +932,62 @@ export default function AdminPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </section>
+
+        {/* Reading Recordings */}
+        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <span>🎙️</span> Reading Recordings ({recordings.length})
+            </h2>
+            <button
+              onClick={() => loadRecordings(stories)}
+              className="text-xs text-gray-400 hover:text-white border border-white/20 px-3 py-1 rounded-lg hover:bg-white/10 transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
+          {recordings.length === 0 ? (
+            <p className="text-gray-500 text-sm">No recordings yet. Students record themselves reading in the book reader.</p>
+          ) : (
+            <div className="space-y-3">
+              {Object.entries(
+                recordings.reduce<Record<string, typeof recordings>>((acc, r) => {
+                  const key = r.username;
+                  if (!acc[key]) acc[key] = [];
+                  acc[key].push(r);
+                  return acc;
+                }, {}),
+              ).map(([username, recs]) => (
+                <div key={username} className="border border-white/10 rounded-2xl overflow-hidden">
+                  <div className="px-4 py-3 bg-white/5 text-sm font-medium flex items-center gap-2">
+                    👤 {username}
+                    <span className="text-xs text-gray-400">{recs.length} recording{recs.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="px-4 pb-4 pt-3 space-y-2">
+                    {recs.map((rec) => {
+                      const story = stories.find((s) => s.id === rec.storyId);
+                      return (
+                        <div key={rec.id} className="flex flex-wrap items-center gap-3 bg-white/[0.04] rounded-xl px-4 py-2 border border-white/10">
+                          <div className="flex-shrink-0 text-xs text-gray-400 space-y-0.5">
+                            <p className="font-medium text-gray-200 truncate max-w-[200px]">
+                              {story?.title || story?.request.slice(0, 40) || rec.storyId.slice(0, 8)}
+                            </p>
+                            <p>Page {rec.pageNumber + 1} · {new Date(rec.createdAt).toLocaleDateString()}</p>
+                          </div>
+                          <audio
+                            src={`/api/stories/${rec.storyId}/recordings/${rec.id}`}
+                            controls
+                            className="flex-1 h-8 min-w-[180px]"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </section>
