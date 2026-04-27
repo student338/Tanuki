@@ -10,6 +10,10 @@ const themeClasses: Record<Theme, string> = {
   sepia: 'bg-amber-50 text-amber-900',
   'orbs-white': 'bg-white text-gray-900',
   'orbs-black': 'bg-gray-950 text-gray-100',
+  forest: 'bg-green-900 text-green-50',
+  ocean: 'bg-sky-900 text-sky-50',
+  sunset: 'bg-orange-50 text-orange-900',
+  midnight: 'bg-slate-900 text-blue-100',
 };
 
 interface ThemeWrapperProps {
