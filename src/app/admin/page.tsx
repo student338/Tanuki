@@ -147,8 +147,16 @@ export default function AdminPage() {
     }
     setGlobalSafety(cfg.globalSafety ?? {});
     setClassrooms(cfg.classrooms ?? {});
-    loadRecordings(storyList);
-  }, [router, loadRecordings]);
+    // Load recordings separately after stories are known
+    if (storyList.length > 0) {
+      const results = await Promise.all(
+        storyList.map((s: Story) =>
+          fetch(`/api/stories/${s.id}/recordings`).then((r) => r.ok ? r.json() : []),
+        ),
+      );
+      setRecordings(results.flat());
+    }
+  }, [router]);
 
   useEffect(() => {
     load();

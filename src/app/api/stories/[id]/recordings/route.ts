@@ -61,9 +61,9 @@ export async function POST(
     return NextResponse.json({ error: 'audio file is required' }, { status: 400 });
   }
 
-  const pageNumber = pageNumberStr !== null ? parseInt(pageNumberStr, 10) : 0;
+  const pageNumber = pageNumberStr !== null ? parseInt(pageNumberStr, 10) : NaN;
   if (isNaN(pageNumber) || pageNumber < 0) {
-    return NextResponse.json({ error: 'Invalid pageNumber' }, { status: 400 });
+    return NextResponse.json({ error: 'pageNumber is required and must be a non-negative integer' }, { status: 400 });
   }
 
   // Ensure storage directory exists
