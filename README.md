@@ -39,6 +39,22 @@ Then open the **Admin UI → Settings** and set the *API Base URL* and *Model* t
 
 ---
 
+## Updating an Existing Install
+
+To update Tanuki Stories without reinstalling, run the update script from the directory where you originally installed it. It will pull the latest code (if you cloned via git), refresh Node.js dependencies, and optionally rebuild for production. Your `.env.local` and all student data in `data/` are left untouched.
+
+**Linux / macOS:**
+```bash
+bash update.sh
+```
+
+**Windows:**
+```bat
+update.bat
+```
+
+---
+
 ## Manual Setup
 
 1. Install dependencies:
