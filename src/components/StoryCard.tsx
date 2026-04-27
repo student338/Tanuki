@@ -64,7 +64,11 @@ export default function StoryCard({ story, showUser = false, onUpdated }: StoryC
   }
 
   return (
-    <div className="rounded-2xl p-6 shadow-lg border border-white/20 backdrop-blur-sm bg-white/10">
+    <div className="glass-shimmer relative rounded-2xl p-6 shadow-xl border border-white/20 backdrop-blur-xl bg-white/[0.07]"
+      style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.07) inset, 0 8px 32px rgba(0,0,0,0.25)' }}
+    >
+      {/* top highlight */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent rounded-t-2xl" />
       <div className="flex items-start justify-between mb-3">
         <div>
           {showUser && (

@@ -46,7 +46,9 @@ export default function ThemeWrapper({ children }: ThemeWrapperProps) {
         <OrbBackground variant={theme === 'orbs-white' ? 'white' : 'black'} />
       )}
       <div className="relative z-10">
-        <div className="fixed top-4 right-4 z-50 bg-white/10 backdrop-blur-sm rounded-2xl p-3 shadow-lg border border-white/20">
+        <div className="fixed top-4 right-4 z-50 bg-white/[0.08] backdrop-blur-xl rounded-2xl p-3 shadow-lg border border-white/20"
+          style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.08) inset, 0 8px 24px rgba(0,0,0,0.3)' }}
+        >
           <ThemeSelector current={theme} onChange={handleChange} />
         </div>
         {children}
