@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import StoryCard from '@/components/StoryCard';
-import { Story, LockableField, StoryDefaults, ReadingLevel } from '@/lib/storage';
-import { READING_LEVEL_VALUES } from '@/lib/reading-levels';
+import { Story, LockableField, StoryDefaults } from '@/lib/storage';
+import { ReadingLevel, READING_LEVEL_VALUES } from '@/lib/reading-levels';
 
 const LOCKABLE_FIELDS: { key: LockableField; label: string }[] = [
   { key: 'chapterCount', label: 'Chapter count' },
@@ -51,6 +51,7 @@ export default function AdminPage() {
   // Reading level range
   const [rlRangeMin, setRlRangeMin] = useState<ReadingLevel>('Pre-K');
   const [rlRangeMax, setRlRangeMax] = useState<ReadingLevel>('Doctorate');
+  const [rlRangeError, setRlRangeError] = useState('');
 
   // Student management
   const [students, setStudents] = useState<StudentInfo[]>([]);
@@ -118,9 +119,14 @@ export default function AdminPage() {
 
   async function handleSave() {
     setSaving(true);
+    setRlRangeError('');
     const minIdx = READING_LEVEL_VALUES.indexOf(rlRangeMin);
     const maxIdx = READING_LEVEL_VALUES.indexOf(rlRangeMax);
-    const effectiveMax = maxIdx >= minIdx ? rlRangeMax : rlRangeMin;
+    if (maxIdx < minIdx) {
+      setRlRangeError('Maximum level must be greater than or equal to minimum level.');
+      setSaving(false);
+      return;
+    }
     await fetch('/api/admin/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -130,7 +136,7 @@ export default function AdminPage() {
         model: model.trim() || undefined,
         localModelId: localModelId.trim() || undefined,
         userConfigs,
-        readingLevelRange: { min: rlRangeMin, max: effectiveMax },
+        readingLevelRange: { min: rlRangeMin, max: rlRangeMax },
       }),
     });
     setSaving(false);
@@ -590,6 +596,7 @@ export default function AdminPage() {
               {saving ? 'Saving...' : 'Save Range'}
             </button>
             {saved && <span className="text-green-400 text-sm">✓ Saved!</span>}
+            {rlRangeError && <span className="text-red-400 text-sm">{rlRangeError}</span>}
           </div>
         </section>
 

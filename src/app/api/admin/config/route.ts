@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getConfig, saveConfig, Config } from '@/lib/storage';
+import { READING_LEVEL_VALUES } from '@/lib/reading-levels';
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -54,6 +55,14 @@ export async function POST(req: NextRequest) {
       typeof body.readingLevelRange.min === 'string' &&
       typeof body.readingLevelRange.max === 'string'
     ) {
+      const minIdx = READING_LEVEL_VALUES.indexOf(body.readingLevelRange.min as never);
+      const maxIdx = READING_LEVEL_VALUES.indexOf(body.readingLevelRange.max as never);
+      if (minIdx === -1 || maxIdx === -1) {
+        return NextResponse.json({ error: 'Invalid reading level in range' }, { status: 400 });
+      }
+      if (minIdx > maxIdx) {
+        return NextResponse.json({ error: 'Minimum reading level must not exceed maximum' }, { status: 400 });
+      }
       updated.readingLevelRange = { min: body.readingLevelRange.min, max: body.readingLevelRange.max };
     } else {
       updated.readingLevelRange = undefined;

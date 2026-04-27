@@ -1,7 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-export type { ReadingLevel } from './reading-levels';
-export { READING_LEVEL_VALUES } from './reading-levels';
 import type { ReadingLevel } from './reading-levels';
 import { READING_LEVEL_VALUES } from './reading-levels';
 

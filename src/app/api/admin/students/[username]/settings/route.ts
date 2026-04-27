@@ -3,10 +3,9 @@ import { getCurrentUser } from '@/lib/auth';
 import {
   getStoredUsers,
   updateStoredUser,
-  READING_LEVEL_VALUES,
-  ReadingLevel,
   StudentPreferences,
 } from '@/lib/storage';
+import { READING_LEVEL_VALUES, ReadingLevel } from '@/lib/reading-levels';
 
 export async function GET(
   _req: NextRequest,

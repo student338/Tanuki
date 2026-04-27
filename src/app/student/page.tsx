@@ -147,12 +147,15 @@ export default function StudentPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    // Apply theme to localStorage so ThemeWrapper picks it up immediately
+    // Apply theme to localStorage; ThemeWrapper listens for storage events
     if (data.preferences.theme) {
       localStorage.setItem('tanuki_theme', data.preferences.theme);
-      // Force page reload so ThemeWrapper re-reads localStorage
-      window.location.reload();
-      return;
+      // Dispatch a storage event so ThemeWrapper (same window) reacts immediately
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'tanuki_theme',
+        newValue: data.preferences.theme,
+        storageArea: localStorage,
+      }));
     }
     setOnboardingData((prev) => prev ? { ...prev, ...data, onboardingCompleted: true } : null);
     setShowOnboarding(false);

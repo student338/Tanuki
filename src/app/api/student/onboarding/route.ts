@@ -4,10 +4,9 @@ import {
   getStoredUsers,
   updateStoredUser,
   getConfig,
-  READING_LEVEL_VALUES,
-  ReadingLevel,
   StudentPreferences,
 } from '@/lib/storage';
+import { READING_LEVEL_VALUES, ReadingLevel } from '@/lib/reading-levels';
 
 /** Return the reading levels allowed by the admin-configured range. */
 function getAllowedLevels(config: ReturnType<typeof getConfig>): ReadingLevel[] {

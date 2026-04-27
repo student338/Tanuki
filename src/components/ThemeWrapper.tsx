@@ -24,6 +24,17 @@ export default function ThemeWrapper({ children }: ThemeWrapperProps) {
     if (saved && VALID_THEMES.includes(saved)) setTheme(saved);
   }, []);
 
+  // Listen for cross-component theme changes written to localStorage
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (e.key === 'tanuki_theme' && e.newValue && VALID_THEMES.includes(e.newValue as Theme)) {
+        setTheme(e.newValue as Theme);
+      }
+    }
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   const handleChange = (t: Theme) => {
     setTheme(t);
     localStorage.setItem('tanuki_theme', t);

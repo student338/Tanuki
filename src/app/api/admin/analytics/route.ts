@@ -45,8 +45,11 @@ export async function GET() {
     const dates = storyMap[username] ?? [];
     const sorted = [...dates].sort();
 
-    const storiesLast7Days = dates.filter((d) => now.getTime() - new Date(d).getTime() < ms7).length;
-    const storiesLast30Days = dates.filter((d) => now.getTime() - new Date(d).getTime() < ms30).length;
+    // Parse dates once to avoid redundant Date construction in filter callbacks
+    const nowMs = now.getTime();
+    const dateTimes = dates.map((d) => new Date(d).getTime());
+    const storiesLast7Days = dateTimes.filter((t) => nowMs - t < ms7).length;
+    const storiesLast30Days = dateTimes.filter((t) => nowMs - t < ms30).length;
 
     return {
       username,
