@@ -14,6 +14,11 @@ const themeClasses: Record<Theme, string> = {
   ocean: 'bg-sky-900 text-sky-50',
   sunset: 'bg-orange-50 text-orange-900',
   midnight: 'bg-slate-900 text-blue-100',
+  candy: 'bg-pink-200 text-pink-900',
+  bubblegum: 'bg-fuchsia-100 text-fuchsia-900',
+  neon: 'bg-violet-950 text-lime-300',
+  lemon: 'bg-yellow-100 text-yellow-900',
+  galaxy: 'bg-purple-950 text-purple-100',
 };
 
 interface ThemeWrapperProps {
