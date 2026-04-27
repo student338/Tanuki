@@ -7,7 +7,8 @@ import StoryCard from '@/components/StoryCard';
 import OnboardingModal from '@/components/OnboardingModal';
 import { Story, LockableField } from '@/lib/storage';
 import { ReadingLevel } from '@/lib/reading-levels';
-import { MATURITY_LEVEL_INFO, MATURITY_LEVEL_DEFAULT } from '@/lib/safety';
+import { MATURITY_LEVEL_INFO, MATURITY_LEVEL_DEFAULT, MATURITY_LEVEL_MAX } from '@/lib/safety';
+import ThemeSelector, { Theme, VALID_THEMES } from '@/components/ThemeSelector';
 
 const GENRES = ['Fantasy', 'Adventure', 'Mystery', 'Sci-Fi', 'Romance', 'Horror', 'Comedy', 'Historical', 'Other'];
 
@@ -46,6 +47,9 @@ export default function StudentPage() {
   const [currentStory, setCurrentStory] = useState<Story | null>(null);
   const [error, setError] = useState('');
   const [showOptions, setShowOptions] = useState(false);
+
+  // Theme state (synced with ThemeWrapper via localStorage + StorageEvent)
+  const [theme, setThemeState] = useState<Theme>('light');
 
   // Maturity state
   const [maturityRange, setMaturityRange] = useState<{ min: number; max: number }>({ min: 1, max: 6 });
@@ -99,6 +103,23 @@ export default function StudentPage() {
     loadStudentConfig();
     loadOnboarding();
   }, [loadStories, loadStudentConfig, loadOnboarding]);
+
+  // Initialise theme from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('tanuki_theme') as Theme | null;
+    if (saved && VALID_THEMES.includes(saved)) setThemeState(saved);
+  }, []);
+
+  function handleThemeChange(t: Theme) {
+    setThemeState(t);
+    localStorage.setItem('tanuki_theme', t);
+    // Dispatch a StorageEvent so ThemeWrapper (same window) reacts immediately
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'tanuki_theme',
+      newValue: t,
+      storageArea: localStorage,
+    }));
+  }
 
   function isLocked(field: LockableField) {
     return lockedFields.includes(field);
@@ -203,6 +224,8 @@ export default function StudentPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            <ThemeSelector current={theme} onChange={handleThemeChange} />
+            <span className="mx-1 h-6 border-l border-current/20" aria-hidden="true" />
             <button
               onClick={() => setShowOnboarding(true)}
               title="Settings"
@@ -349,38 +372,53 @@ export default function StudentPage() {
                 </div>
 
                 {/* Content maturity */}
-                {maturityRange.max > maturityRange.min && (
+                {(maturityRange.max > maturityRange.min || maturityRange.max === MATURITY_LEVEL_MAX) && (
                   <div>
                     <label className="block text-sm font-medium mb-2 opacity-80">Content maturity</label>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-purple-300">
-                        {MATURITY_LEVEL_INFO[contentMaturityLevel]?.emoji}{' '}
-                        {MATURITY_LEVEL_INFO[contentMaturityLevel]?.label}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={maturityRange.min}
-                      max={maturityRange.max}
-                      step={1}
-                      value={contentMaturityLevel}
-                      onChange={(e) => setContentMaturityLevel(Number(e.target.value))}
-                      className="w-full accent-purple-500 cursor-pointer"
-                    />
-                    <div className="flex justify-between mt-1">
-                      {Array.from({ length: maturityRange.max - maturityRange.min + 1 }, (_, i) => maturityRange.min + i).map((n) => (
-                        <button
-                          key={n}
-                          type="button"
-                          onClick={() => setContentMaturityLevel(n)}
-                          className={`text-xs text-center transition-colors ${contentMaturityLevel === n ? 'text-purple-300 font-semibold' : 'opacity-40 hover:opacity-70'}`}
-                          style={{ width: `${100 / (maturityRange.max - maturityRange.min + 1)}%` }}
-                        >
-                          {MATURITY_LEVEL_INFO[n]?.emoji}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="mt-1 text-xs opacity-50">{MATURITY_LEVEL_INFO[contentMaturityLevel]?.description}</p>
+                    {maturityRange.max > maturityRange.min ? (
+                      <>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium text-purple-300">
+                            {MATURITY_LEVEL_INFO[contentMaturityLevel]?.emoji}{' '}
+                            {MATURITY_LEVEL_INFO[contentMaturityLevel]?.label}
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={maturityRange.min}
+                          max={maturityRange.max}
+                          step={1}
+                          value={contentMaturityLevel}
+                          onChange={(e) => setContentMaturityLevel(Number(e.target.value))}
+                          className="w-full accent-purple-500 cursor-pointer"
+                        />
+                        <div className="flex justify-between mt-1">
+                          {Array.from({ length: maturityRange.max - maturityRange.min + 1 }, (_, i) => maturityRange.min + i).map((n) => (
+                            <button
+                              key={n}
+                              type="button"
+                              onClick={() => setContentMaturityLevel(n)}
+                              className={`text-xs text-center transition-colors ${contentMaturityLevel === n ? 'text-purple-300 font-semibold' : 'opacity-40 hover:opacity-70'}`}
+                              style={{ width: `${100 / (maturityRange.max - maturityRange.min + 1)}%` }}
+                              title={MATURITY_LEVEL_INFO[n]?.label}
+                              aria-label={MATURITY_LEVEL_INFO[n]?.label}
+                            >
+                              {MATURITY_LEVEL_INFO[n]?.emoji}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="mt-1 text-xs opacity-50">{MATURITY_LEVEL_INFO[contentMaturityLevel]?.description}</p>
+                      </>
+                    ) : (
+                      // min === max === MATURITY_LEVEL_MAX: admin has set unrestricted mode
+                      <div className="flex items-center gap-2 py-2 px-3 bg-purple-500/10 border border-purple-400/20 rounded-xl">
+                        <span className="text-lg">🔓</span>
+                        <div>
+                          <p className="text-sm font-medium text-purple-300">None</p>
+                          <p className="text-xs opacity-50">No content safety restrictions applied</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

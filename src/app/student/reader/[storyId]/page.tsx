@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import ThemeWrapper from '@/components/ThemeWrapper';
+import ThemeSelector, { Theme, VALID_THEMES } from '@/components/ThemeSelector';
 import { Story } from '@/lib/storage';
 
 interface Recording {
@@ -41,6 +42,9 @@ export default function ReaderPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Theme state (synced with ThemeWrapper via localStorage + StorageEvent)
+  const [theme, setThemeState] = useState<Theme>('light');
+
   // Recording state
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -72,6 +76,22 @@ export default function ReaderPage() {
     loadStory();
     loadRecordings();
   }, [loadStory, loadRecordings]);
+
+  // Initialise theme from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('tanuki_theme') as Theme | null;
+    if (saved && VALID_THEMES.includes(saved)) setThemeState(saved);
+  }, []);
+
+  function handleThemeChange(t: Theme) {
+    setThemeState(t);
+    localStorage.setItem('tanuki_theme', t);
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'tanuki_theme',
+      newValue: t,
+      storageArea: localStorage,
+    }));
+  }
 
   async function startRecording() {
     setRecordingError('');
@@ -163,9 +183,12 @@ export default function ReaderPage() {
               {story.title || story.request.slice(0, 60)}
             </h1>
           </div>
-          <span className="text-sm opacity-50">
-            Page {pageIndex + 1} / {pages.length}
-          </span>
+          <div className="flex items-center gap-3">
+            <ThemeSelector current={theme} onChange={handleThemeChange} />
+            <span className="text-sm opacity-50 whitespace-nowrap">
+              Page {pageIndex + 1} / {pages.length}
+            </span>
+          </div>
         </header>
 
         {/* Page content */}
