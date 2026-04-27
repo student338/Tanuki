@@ -33,9 +33,9 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-950 to-pink-950 flex items-center justify-center p-4">
       {/* Decorative blur orbs */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute top-[-10%] left-[-5%] w-96 h-96 bg-purple-500 rounded-full opacity-20 blur-[80px]" />
-        <div className="absolute bottom-[-10%] right-[-5%] w-96 h-96 bg-pink-500 rounded-full opacity-20 blur-[80px]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-indigo-400 rounded-full opacity-10 blur-[100px]" />
+        <div className="absolute top-[-10%] left-[-5%] w-96 h-96 bg-purple-500 rounded-full opacity-20 blur-[80px]" style={{ willChange: 'transform' }} />
+        <div className="absolute bottom-[-10%] right-[-5%] w-96 h-96 bg-pink-500 rounded-full opacity-20 blur-[80px]" style={{ willChange: 'transform' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-indigo-400 rounded-full opacity-10 blur-[100px]" style={{ willChange: 'transform' }} />
       </div>
       <div className="relative w-full max-w-md">
         <div className="text-center mb-8">
