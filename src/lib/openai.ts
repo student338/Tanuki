@@ -38,6 +38,12 @@ export interface GenerateOptions {
    * Accumulated from global, classroom, and per-student settings.
    */
   blockedTopics?: string[];
+  /**
+   * Optional text extracted from a base story or uploaded PDF.
+   * Injected into the prompt so the generated story is inspired by or
+   * continues the source material.
+   */
+  baseStoryContext?: string;
 }
 
 function buildUserMessage(userRequest: string, opts?: StoryOptions): string {

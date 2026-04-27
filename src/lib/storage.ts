@@ -111,6 +111,17 @@ export interface StoryOptions {
   vocabularyComplexity?: 'basic' | 'intermediate' | 'advanced';
   genre?: string;
   plot?: string;
+  /**
+   * Content maturity level requested by the student (1–6).
+   * Clamped by the effective per-student/classroom/global range on the server.
+   */
+  contentMaturityLevel?: number;
+  /**
+   * Text extracted from a base story or uploaded PDF document.
+   * Injected into the LLM prompt as narrative context so the new story
+   * is inspired by / continues the source material.
+   */
+  baseStoryContext?: string;
 }
 
 export interface Story {
