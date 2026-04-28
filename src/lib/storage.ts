@@ -13,7 +13,7 @@ export const RECORDINGS_DIR = path.join(DATA_DIR, 'recordings');
 const KNOWLEDGE_BASE_FILE = path.join(DATA_DIR, 'knowledge-base.json');
 
 const DEFAULT_SYSTEM_PROMPT =
-  'You are a creative story writer. Write an engaging, age-appropriate story based on the student\'s request.';
+  'You are a creative story writer. Create a detailed story with clear exposition, rising action, climax, falling action, and resolution. Explain sight, touch, taste, scent, sound, and the character\'s thought in detail.';
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {

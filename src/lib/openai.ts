@@ -318,7 +318,7 @@ export async function* generateChapterStream(
   const totalChapters = storyOptions?.chapterCount ?? 1;
 
   const promptParts: string[] = [
-    systemPrompt || 'You are a creative story writer. Write an engaging, age-appropriate story chapter.',
+    systemPrompt || 'You are a creative story writer. Create a detailed story with clear exposition, rising action, climax, falling action, and resolution. Explain sight, touch, taste, scent, sound, and the character\'s thought in detail.',
     'Write only the prose content of the chapter — no headings, no labels, just the narrative text.',
   ];
 
