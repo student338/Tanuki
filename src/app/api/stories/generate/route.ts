@@ -69,17 +69,27 @@ export async function POST(req: NextRequest) {
 
     const contextParts: string[] = [];
 
+    // Limit each KB document to 800 chars to stay within token budgets
+    const KB_CONTENT_LIMIT = 800;
     if (kbResults.length > 0) {
       contextParts.push('== Knowledge Base ==');
       for (const doc of kbResults) {
-        contextParts.push(`[${doc.title}]\n${doc.content}`);
+        const excerpt = doc.content.length > KB_CONTENT_LIMIT
+          ? doc.content.slice(0, KB_CONTENT_LIMIT) + '…'
+          : doc.content;
+        contextParts.push(`[${doc.title}]\n${excerpt}`);
       }
     }
 
+    // Limit each web snippet to 400 chars
+    const SNIPPET_LIMIT = 400;
     if (webResults.length > 0) {
       contextParts.push('== Web Search Results ==');
       for (const result of webResults) {
-        contextParts.push(`[${result.title}] ${result.url}\n${result.snippet}`);
+        const snippet = result.snippet.length > SNIPPET_LIMIT
+          ? result.snippet.slice(0, SNIPPET_LIMIT) + '…'
+          : result.snippet;
+        contextParts.push(`[${result.title}] ${result.url}\n${snippet}`);
       }
     }
 
