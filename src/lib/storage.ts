@@ -261,6 +261,26 @@ export function markStoryComplete(id: string): Story | null {
   return stories[idx];
 }
 
+/**
+ * Extend a completed chapter-based story by adding more chapters.
+ * Resets `generationComplete` so the chapter route will accept new requests.
+ */
+export function extendStory(id: string, additionalChapters: number): Story | null {
+  const stories = getStories();
+  const idx = stories.findIndex((s) => s.id === id);
+  if (idx === -1) return null;
+  const current = stories[idx];
+  const currentCount = current.options?.chapterCount ?? (current.chapters?.length ?? 0);
+  stories[idx] = {
+    ...current,
+    options: { ...current.options, chapterCount: currentCount + additionalChapters },
+    generationComplete: false,
+    updatedAt: new Date().toISOString(),
+  };
+  fs.writeFileSync(STORIES_FILE, JSON.stringify(stories, null, 2));
+  return stories[idx];
+}
+
 // ── Stored student users ─────────────────────────────────────────────────────
 
 export interface StudentPreferences {
