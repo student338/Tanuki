@@ -41,17 +41,6 @@ function paginateStory(text: string, wordsPerPage = 450): string[] {
   return pages.length > 0 ? pages : [text];
 }
 
-/** Strips common AI preamble phrases from the start of a chapter (client-side copy). */
-function stripChapterPreamble(text: string): string {
-  return text
-    .replace(
-      /^(?:(?:Of course[!,]?\s*|Sure[!,]?\s*|Certainly[!,]?\s*|Absolutely[!,]?\s*)?(?:Here(?:'s| is)\b[^\n]*\n+))+/i,
-      '',
-    )
-    .replace(/^Chapter \d+[:\s]*\n+/i, '')
-    .trimStart();
-}
-
 const PLAN_LABELS: { key: keyof StoryPlan; label: string }[] = [
   { key: 'exposition',    label: '🌅 Exposition' },
   { key: 'risingAction',  label: '⬆️ Rising Action' },
@@ -210,7 +199,7 @@ export default function ReaderPage() {
         } else {
           accumulated += chunk;
         }
-        setStreamingText(stripChapterPreamble(accumulated.replace(/\n\u0000DONE$/, '')));
+        setStreamingText(accumulated.replace(/\n\u0000DONE$/, ''));
       }
 
       // Reload story to get updated chapters from server

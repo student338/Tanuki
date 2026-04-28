@@ -319,7 +319,7 @@ export async function* generateChapterStream(
 
   const promptParts: string[] = [
     systemPrompt || 'You are a creative story writer. Write an engaging, age-appropriate story chapter.',
-    'Write only the prose content of the chapter — no headings, no labels, just the narrative text.',
+    'Write only the prose content of the chapter — no headings, no labels, just the narrative text. Do not start your response with a preamble such as "Here\'s the chapter", "Here\'s the revised version", "Chapter X:", or any similar phrase. Begin directly with the story.',
   ];
 
   const level = contentMaturityLevel !== undefined && contentMaturityLevel >= 1 && contentMaturityLevel <= 6
@@ -376,20 +376,4 @@ export async function* generateChapterStream(
     const delta = chunk.choices[0]?.delta?.content ?? '';
     if (delta) yield delta;
   }
-}
-
-// ── Post-processing ───────────────────────────────────────────────────────────
-
-/**
- * Strips common AI preamble phrases from the start of a generated chapter,
- * e.g. "Here's the revised version of Chapter 3:\n\n".
- */
-export function stripChapterPreamble(text: string): string {
-  return text
-    .replace(
-      /^(?:(?:Of course[!,]?\s*|Sure[!,]?\s*|Certainly[!,]?\s*|Absolutely[!,]?\s*)?(?:Here(?:'s| is)\b[^\n]*\n+))+/i,
-      '',
-    )
-    .replace(/^Chapter \d+[:\s]*\n+/i, '')
-    .trimStart();
 }
