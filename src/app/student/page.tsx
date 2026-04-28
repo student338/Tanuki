@@ -583,7 +583,7 @@ export default function StudentPage() {
                   ? <><span className="animate-spin">⟳</span> Researching &amp; writing…</>
                   : <><span className="animate-spin">⟳</span> Generating your story…</>
               ) : (
-                infoMode ? '🔍 Research & Generate Article' : '✨ Generate Story'
+                infoMode ? '🔍 Research &amp; Generate Article' : '✨ Generate Story'
               )}
             </button>
           </section>

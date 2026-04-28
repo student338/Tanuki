@@ -224,7 +224,7 @@ export function updateStory(id: string, content: string): Story | null {
  * are appended.
  */
 export function saveChapterStory(record: Omit<Story, 'story'> & { story?: string }): Story {
-  const full: Story = { story: '', ...record };
+  const full: Story = { ...record, story: record.story ?? '' };
   const stories = getStories();
   stories.unshift(full);
   fs.writeFileSync(STORIES_FILE, JSON.stringify(stories, null, 2));

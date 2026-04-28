@@ -71,6 +71,8 @@ export default function ReaderPage() {
   const abortRef = useRef<AbortController | null>(null);
   // Track pages length before a new chapter starts so we can jump to it
   const pagesLenBeforeStreamRef = useRef(0);
+  // Stable ref to the latest streamNextChapter function (avoids stale closures in effects)
+  const streamNextChapterRef = useRef<(revision?: string) => Promise<void>>(() => Promise.resolve());
 
   const isChapterBased = (s: Story) => Array.isArray(s.chapters);
 
@@ -114,9 +116,10 @@ export default function ReaderPage() {
     if (!story || !isChapterBased(story)) return;
     if (story.generationComplete) return;
     if ((story.chapters ?? []).length === 0 && streamState === 'idle') {
-      streamNextChapter();
+      streamNextChapterRef.current();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // story?.id is the intentional dependency — we only want to fire when the story changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?.id]);
 
   function handleThemeChange(t: Theme) {
@@ -205,6 +208,11 @@ export default function ReaderPage() {
       setStreamState('idle');
     }
   }
+
+  // Keep the ref pointing to the latest version of streamNextChapter
+  useEffect(() => {
+    streamNextChapterRef.current = streamNextChapter;
+  });
 
   // Recording helpers
   async function startRecording() {

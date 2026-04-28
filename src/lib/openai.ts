@@ -277,7 +277,7 @@ function buildChapterUserMessage(
   if (opts?.vocabularyComplexity) parts.push(`Vocabulary complexity: ${opts.vocabularyComplexity}`);
 
   parts.push(`Story request: ${userRequest}`);
-  parts.push(`\nStory plan:\n- Exposition: ${plan.exposition}\n- Rising action: ${plan.risingAction}\n- Climax: ${plan.climax}\n- Falling action: ${plan.fallingAction}\n- Resolution: ${plan.resolution}`);
+  parts.push(`\nStory plan:\n- Exposition: ${plan.exposition}\n- Rising Action: ${plan.risingAction}\n- Climax: ${plan.climax}\n- Falling Action: ${plan.fallingAction}\n- Resolution: ${plan.resolution}`);
 
   if (previousChapters.length > 0) {
     const recent = previousChapters.slice(-2);
