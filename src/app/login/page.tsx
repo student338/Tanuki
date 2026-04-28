@@ -14,19 +14,29 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) {
-      setError(data.error || 'Login failed');
-      return;
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      if (!res.ok) {
+        let errorMsg = 'Login failed';
+        try {
+          const errData = await res.json();
+          errorMsg = errData.error || errorMsg;
+        } catch { /* ignore JSON parse error */ }
+        setError(errorMsg);
+        return;
+      }
+      const data = await res.json();
+      if (data.user.role === 'admin') router.push('/admin');
+      else router.push('/student');
+    } catch {
+      setError('Login failed');
+    } finally {
+      setLoading(false);
     }
-    if (data.user.role === 'admin') router.push('/admin');
-    else router.push('/student');
   }
 
   return (
