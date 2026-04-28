@@ -49,10 +49,9 @@ export function validateCredentials(username: string, password: string): User | 
   // Check env-based users first
   const envUser = ENV_USERS[username];
   if (envUser) {
-    const match = timingSafeEqual(
-      Buffer.from(password),
-      Buffer.from(envUser.password),
-    );
+    const pwBuf = Buffer.from(password);
+    const storedBuf = Buffer.from(envUser.password);
+    const match = pwBuf.length === storedBuf.length && timingSafeEqual(pwBuf, storedBuf);
     if (match) return { username, role: envUser.role };
   }
 
@@ -60,10 +59,9 @@ export function validateCredentials(username: string, password: string): User | 
   try {
     const fileUser = getStoredUsers().find((u) => u.username === username);
     if (fileUser) {
-      const match = timingSafeEqual(
-        Buffer.from(password),
-        Buffer.from(fileUser.password),
-      );
+      const pwBuf = Buffer.from(password);
+      const storedBuf = Buffer.from(fileUser.password);
+      const match = pwBuf.length === storedBuf.length && timingSafeEqual(pwBuf, storedBuf);
       if (match) return { username, role: fileUser.role };
     }
   } catch {
