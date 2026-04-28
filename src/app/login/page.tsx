@@ -1,19 +1,32 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+
+  // Redirect already-authenticated users away from the login page.
+  // Use window.location.replace (full page navigation) for the same reason as
+  // the post-login redirect below: Safari on iOS/iPadOS needs a full navigation
+  // to reliably include the session cookie in subsequent fetch requests.
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.user?.role === 'admin') window.location.replace('/admin');
+        else if (data?.user?.role === 'student') window.location.replace('/student');
+      })
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
+    let navigated = false;
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -30,12 +43,19 @@ export default function LoginPage() {
         return;
       }
       const data = await res.json();
-      if (data.user.role === 'admin') router.push('/admin');
-      else router.push('/student');
+      navigated = true;
+      // Use a full page navigation so that Safari on iOS/iPadOS reliably
+      // includes the newly-set session cookie in all subsequent requests.
+      // Client-side navigation (router.replace) keeps the same fetch context,
+      // and Safari does not always flush Set-Cookie headers to the cookie jar
+      // in time for the next in-page fetch — causing the API calls on the
+      // destination page to return 401 and redirect straight back to login.
+      if (data.user.role === 'admin') window.location.replace('/admin');
+      else window.location.replace('/student');
     } catch {
       setError('Login failed');
     } finally {
-      setLoading(false);
+      if (!navigated) setLoading(false);
     }
   }
 
