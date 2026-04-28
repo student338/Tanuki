@@ -284,7 +284,7 @@ function buildChapterUserMessage(
     parts.push(`\nPrevious chapter(s):\n${recent.map((c, i) => `Chapter ${chapterIndex - recent.length + i + 1}:\n${c}`).join('\n\n')}`);
   }
 
-  parts.push(`\nNow write Chapter ${chapterIndex + 1} of ${totalChapters}.`);
+  parts.push(`\nNow write Chapter ${chapterIndex + 1} of ${totalChapters}. Write approximately 450 words. Make sure the chapter ends at a natural stopping point — do not cut off mid-sentence or mid-scene.`);
   if (revisionNote) {
     parts.push(`The student has a revision request for this chapter: ${revisionNote}`);
   }
