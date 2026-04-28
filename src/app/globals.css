@@ -20,6 +20,9 @@
   .glass-shimmer::before {
     animation: none;
   }
+  .water-progress-bar {
+    animation: none;
+  }
 }
 
 @keyframes glassShimmer {
@@ -80,3 +83,46 @@
 .animate-orb4 { animation: orbFloat 9s ease-in-out infinite reverse; }
 .animate-orb5 { animation: orbFloat2 12s ease-in-out infinite reverse; }
 .animate-orb6 { animation: orbFloat3 10s ease-in-out infinite; }
+
+/* Water-like progress bar for story streaming */
+@keyframes waterFlow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes waterWave {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.water-progress-bar {
+  background: linear-gradient(
+    90deg,
+    #06b6d4,
+    #3b82f6,
+    #8b5cf6,
+    #ec4899,
+    #06b6d4,
+    #3b82f6
+  );
+  background-size: 300% 100%;
+  animation: waterFlow 2.5s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+.water-progress-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.25) 40%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0.25) 60%,
+    transparent 100%
+  );
+  animation: waterWave 1.8s linear infinite;
+}
