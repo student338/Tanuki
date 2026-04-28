@@ -15,21 +15,41 @@ interface Recording {
   createdAt: string;
 }
 
-/** Splits story text into pages of roughly `charsPerPage` characters, breaking at paragraphs. */
-function paginateStory(text: string, charsPerPage = 900): string[] {
+/** Counts words in a string. */
+function countWords(text: string): number {
+  return text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+}
+
+/** Splits story text into pages of roughly `wordsPerPage` words, breaking at paragraphs. */
+function paginateStory(text: string, wordsPerPage = 450): string[] {
   const paragraphs = text.split(/\n\n+/).filter(Boolean);
   const pages: string[] = [];
   let current = '';
+  let currentWords = 0;
   for (const para of paragraphs) {
-    if (current && current.length + para.length + 2 > charsPerPage) {
+    const paraWords = countWords(para);
+    if (current && currentWords + paraWords > wordsPerPage) {
       pages.push(current.trim());
       current = para;
+      currentWords = paraWords;
     } else {
       current = current ? `${current}\n\n${para}` : para;
+      currentWords += paraWords;
     }
   }
   if (current.trim()) pages.push(current.trim());
   return pages.length > 0 ? pages : [text];
+}
+
+/** Strips common AI preamble phrases from the start of a chapter (client-side copy). */
+function stripChapterPreamble(text: string): string {
+  return text
+    .replace(
+      /^(?:(?:Of course[!,]?\s*|Sure[!,]?\s*|Certainly[!,]?\s*|Absolutely[!,]?\s*)?(?:Here(?:'s| is)\b[^\n]*\n+))+/i,
+      '',
+    )
+    .replace(/^Chapter \d+[:\s]*\n+/i, '')
+    .trimStart();
 }
 
 const PLAN_LABELS: { key: keyof StoryPlan; label: string }[] = [
@@ -73,6 +93,13 @@ export default function ReaderPage() {
   const pagesLenBeforeStreamRef = useRef(0);
   // Stable ref to the latest streamNextChapter function (avoids stale closures in effects)
   const streamNextChapterRef = useRef<(revision?: string) => Promise<void>>(() => Promise.resolve());
+  // How many more chapters should auto-stream after the current one finishes
+  const autoAdvanceRef = useRef(0);
+
+  // Extend-story state
+  const [extendCount, setExtendCount] = useState(1);
+  const [extending, setExtending] = useState(false);
+  const [extendError, setExtendError] = useState('');
 
   const isChapterBased = (s: Story) => Array.isArray(s.chapters);
 
@@ -116,6 +143,8 @@ export default function ReaderPage() {
     if (!story || !isChapterBased(story)) return;
     if (story.generationComplete) return;
     if ((story.chapters ?? []).length === 0 && streamState === 'idle') {
+      // Auto-advance through all planned chapters without manual button presses
+      autoAdvanceRef.current = (story.options?.chapterCount ?? 1) - 1;
       streamNextChapterRef.current();
     }
   // story?.id is the intentional dependency — we only want to fire when the story changes
@@ -181,7 +210,7 @@ export default function ReaderPage() {
         } else {
           accumulated += chunk;
         }
-        setStreamingText(accumulated.replace(/\n\u0000DONE$/, ''));
+        setStreamingText(stripChapterPreamble(accumulated.replace(/\n\u0000DONE$/, '')));
       }
 
       // Reload story to get updated chapters from server
@@ -197,11 +226,27 @@ export default function ReaderPage() {
             setPageIndex(pagesLenBeforeStreamRef.current);
           }
         }
-        setStreamState(complete || updated.generationComplete ? 'done' : 'idle');
+        const isDone = complete || updated.generationComplete;
+        setStreamingText('');
+        if (isDone) {
+          setStreamState('done');
+        } else if (autoAdvanceRef.current > 0) {
+          autoAdvanceRef.current -= 1;
+          streamNextChapterRef.current();
+        } else {
+          setStreamState('idle');
+        }
       } else {
-        setStreamState(complete ? 'done' : 'idle');
+        setStreamingText('');
+        if (complete) {
+          setStreamState('done');
+        } else if (autoAdvanceRef.current > 0) {
+          autoAdvanceRef.current -= 1;
+          streamNextChapterRef.current();
+        } else {
+          setStreamState('idle');
+        }
       }
-      setStreamingText('');
     } catch (e: unknown) {
       if (e instanceof Error && e.name === 'AbortError') return;
       setStreamError('Streaming failed. Please try again.');
@@ -213,6 +258,33 @@ export default function ReaderPage() {
   useEffect(() => {
     streamNextChapterRef.current = streamNextChapter;
   });
+
+  async function handleExtend() {
+    if (!storyId) return;
+    setExtending(true);
+    setExtendError('');
+    try {
+      const res = await fetch(`/api/stories/${storyId}/extend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ additionalChapters: extendCount }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Failed to extend story' }));
+        setExtendError(err.error ?? 'Failed to extend story');
+        return;
+      }
+      const updated: Story = await res.json();
+      setStory(updated);
+      // Auto-advance through all added chapters
+      autoAdvanceRef.current = extendCount - 1;
+      streamNextChapterRef.current();
+    } catch {
+      setExtendError('Failed to extend story. Please try again.');
+    } finally {
+      setExtending(false);
+    }
+  }
 
   // Recording helpers
   async function startRecording() {
@@ -479,13 +551,36 @@ export default function ReaderPage() {
             </section>
           )}
 
-          {/* All chapters complete badge */}
+          {/* All chapters complete — badge + extend controls */}
           {isChapterBased(story) && allChaptersGenerated && chaptersDone > 0 && (
-            <div className="text-center py-4">
-              <span className="inline-block bg-green-500/20 text-green-300 border border-green-400/30 px-4 py-2 rounded-2xl text-sm font-medium">
-                ✅ Story complete — {totalChapters} chapter{totalChapters !== 1 ? 's' : ''}
-              </span>
-            </div>
+            <section className="bg-white/[0.05] rounded-2xl p-5 border border-white/10 space-y-4">
+              <div className="text-center">
+                <span className="inline-block bg-green-500/20 text-green-300 border border-green-400/30 px-4 py-2 rounded-2xl text-sm font-medium">
+                  ✅ Story complete — {totalChapters} chapter{totalChapters !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium opacity-80 whitespace-nowrap">Continue for</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={extendCount}
+                  onChange={(e) => setExtendCount(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
+                  className="w-20 bg-black/10 border border-current/20 rounded-xl px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <label className="text-sm font-medium opacity-80 whitespace-nowrap">more chapter{extendCount !== 1 ? 's' : ''}</label>
+                <button
+                  type="button"
+                  onClick={handleExtend}
+                  disabled={extending || streamState === 'streaming'}
+                  className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold py-2.5 rounded-xl transition-all text-sm disabled:opacity-50"
+                >
+                  {extending ? 'Starting…' : '✨ Continue'}
+                </button>
+              </div>
+              {extendError && <p className="text-red-400 text-xs">{extendError}</p>}
+            </section>
           )}
 
           {/* Recording controls */}

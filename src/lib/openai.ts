@@ -284,7 +284,7 @@ function buildChapterUserMessage(
     parts.push(`\nPrevious chapter(s):\n${recent.map((c, i) => `Chapter ${chapterIndex - recent.length + i + 1}:\n${c}`).join('\n\n')}`);
   }
 
-  parts.push(`\nNow write Chapter ${chapterIndex + 1} of ${totalChapters}. Write approximately 450 words. Make sure the chapter ends at a natural stopping point — do not cut off mid-sentence or mid-scene.`);
+  parts.push(`\nNow write Chapter ${chapterIndex + 1} of ${totalChapters}.`);
   if (revisionNote) {
     parts.push(`The student has a revision request for this chapter: ${revisionNote}`);
   }
@@ -336,7 +336,7 @@ export async function* generateChapterStream(
     userRequest, storyOptions, plan, chapterIndex, totalChapters, previousChapters, revisionNote,
   );
 
-  const maxTokens = 600;
+  const maxTokens = 1200;
 
   if (!apiKey && !apiBaseUrl) {
     await new Promise((r) => setTimeout(r, 400));
@@ -376,4 +376,20 @@ export async function* generateChapterStream(
     const delta = chunk.choices[0]?.delta?.content ?? '';
     if (delta) yield delta;
   }
+}
+
+// ── Post-processing ───────────────────────────────────────────────────────────
+
+/**
+ * Strips common AI preamble phrases from the start of a generated chapter,
+ * e.g. "Here's the revised version of Chapter 3:\n\n".
+ */
+export function stripChapterPreamble(text: string): string {
+  return text
+    .replace(
+      /^(?:(?:Of course[!,]?\s*|Sure[!,]?\s*|Certainly[!,]?\s*|Absolutely[!,]?\s*)?(?:Here(?:'s| is)\b[^\n]*\n+))+/i,
+      '',
+    )
+    .replace(/^Chapter \d+[:\s]*\n+/i, '')
+    .trimStart();
 }
