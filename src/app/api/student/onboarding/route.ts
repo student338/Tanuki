@@ -68,6 +68,9 @@ export async function POST(req: NextRequest) {
         (g): g is string => typeof g === 'string',
       );
     }
+    if (typeof body.preferences.coWriterMode === 'boolean') {
+      preferences.coWriterMode = body.preferences.coWriterMode;
+    }
   }
 
   const patch: Parameters<typeof updateStoredUser>[1] = {

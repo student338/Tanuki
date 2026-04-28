@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import ThemeWrapper from '@/components/ThemeWrapper';
 import StoryCard from '@/components/StoryCard';
 import OnboardingModal from '@/components/OnboardingModal';
-import { Story, LockableField } from '@/lib/storage';
+import { Story, LockableField, StoryPlan } from '@/lib/storage';
 import { ReadingLevel } from '@/lib/reading-levels';
 import { MATURITY_LEVEL_INFO, MATURITY_LEVEL_DEFAULT, MATURITY_LEVEL_MAX } from '@/lib/safety';
 import ThemeSelector, { Theme, VALID_THEMES } from '@/components/ThemeSelector';
@@ -33,7 +33,7 @@ const DEFAULT_OPTIONS: StoryOptions = {
 interface OnboardingData {
   onboardingCompleted: boolean;
   readingLevel: ReadingLevel | null;
-  preferences: { theme?: string; favoriteGenres?: string[] };
+  preferences: { theme?: string; favoriteGenres?: string[]; coWriterMode?: boolean };
   allowedReadingLevels: ReadingLevel[];
 }
 
@@ -50,6 +50,14 @@ export default function StudentPage() {
 
   // Info Mode toggle
   const [infoMode, setInfoMode] = useState(false);
+
+  // Co-writer mode (loaded from student config)
+  const [coWriterMode, setCoWriterMode] = useState(false);
+
+  // Planning stage state
+  type PlanningStage = 'idle' | 'planning' | 'editing' | 'starting';
+  const [planningStage, setPlanningStage] = useState<PlanningStage>('idle');
+  const [editedPlan, setEditedPlan] = useState<StoryPlan | null>(null);
 
   // Theme state (synced with ThemeWrapper via localStorage + StorageEvent)
   const [theme, setThemeState] = useState<Theme>('light');
@@ -86,6 +94,7 @@ export default function StudentPage() {
     setLockedFields(locked);
     if (cfg.maturityRange) setMaturityRange(cfg.maturityRange);
     if (typeof cfg.contentMaturityLevel === 'number') setContentMaturityLevel(cfg.contentMaturityLevel);
+    if (typeof cfg.coWriterMode === 'boolean') setCoWriterMode(cfg.coWriterMode);
     setOptions((prev) => {
       const next = { ...prev };
       for (const field of locked) {
@@ -147,30 +156,111 @@ export default function StudentPage() {
 
   async function handleGenerate() {
     if (!request.trim()) return;
-    setGenerating(true);
+
+    // Info mode: use old direct generate flow (no planning stage)
+    if (infoMode) {
+      setGenerating(true);
+      setError('');
+      setCurrentStory(null);
+      const res = await fetch('/api/stories/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          request,
+          title: options.title || undefined,
+          chapterCount: options.chapterCount,
+          readingComplexity: options.readingComplexity,
+          vocabularyComplexity: options.vocabularyComplexity,
+          contentMaturityLevel,
+          infoMode: true,
+        }),
+      });
+      const data = await res.json();
+      setGenerating(false);
+      if (!res.ok) { setError(data.error || 'Generation failed'); return; }
+      setCurrentStory(data);
+      setRequest('');
+      loadStories();
+      return;
+    }
+
+    // Story mode: planning stage
     setError('');
     setCurrentStory(null);
-    const res = await fetch('/api/stories/generate', {
+    setPlanningStage('planning');
+    setEditedPlan(null);
+
+    const planBody = {
+      request,
+      title: options.title || undefined,
+      chapterCount: options.chapterCount,
+      readingComplexity: options.readingComplexity,
+      vocabularyComplexity: options.vocabularyComplexity,
+      genre: options.genre || undefined,
+      plot: options.plot || undefined,
+      contentMaturityLevel,
+    };
+
+    const planRes = await fetch('/api/stories/plan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        request,
-        title: options.title || undefined,
-        chapterCount: options.chapterCount,
-        readingComplexity: options.readingComplexity,
-        vocabularyComplexity: options.vocabularyComplexity,
-        genre: infoMode ? undefined : (options.genre || undefined),
-        plot: infoMode ? undefined : (options.plot || undefined),
-        contentMaturityLevel,
-        infoMode,
-      }),
+      body: JSON.stringify(planBody),
     });
-    const data = await res.json();
-    setGenerating(false);
-    if (!res.ok) { setError(data.error || 'Generation failed'); return; }
-    setCurrentStory(data);
+
+    if (!planRes.ok) {
+      const data = await planRes.json();
+      setError(data.error || 'Plan generation failed');
+      setPlanningStage('idle');
+      return;
+    }
+
+    const { plan } = await planRes.json();
+    setEditedPlan({ ...plan });
+
+    if (coWriterMode) {
+      // Show the plan editor — user will click "Generate Story" after editing
+      setPlanningStage('editing');
+    } else {
+      // Skip editor; immediately start story
+      await startStoryWithPlan(plan);
+    }
+  }
+
+  async function startStoryWithPlan(plan: StoryPlan) {
+    setPlanningStage('starting');
+    setError('');
+
+    const startBody = {
+      request,
+      plan,
+      title: options.title || undefined,
+      chapterCount: options.chapterCount,
+      readingComplexity: options.readingComplexity,
+      vocabularyComplexity: options.vocabularyComplexity,
+      genre: options.genre || undefined,
+      plot: options.plot || undefined,
+      contentMaturityLevel,
+    };
+
+    const startRes = await fetch('/api/stories/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(startBody),
+    });
+
+    if (!startRes.ok) {
+      const data = await startRes.json();
+      setError(data.error || 'Failed to start story');
+      setPlanningStage('idle');
+      return;
+    }
+
+    const storyRecord = await startRes.json();
+    setPlanningStage('idle');
+    setEditedPlan(null);
     setRequest('');
     loadStories();
+    router.push(`/student/reader/${storyRecord.id}`);
   }
 
   function handleStoryUpdated(updated: Story) {
@@ -180,7 +270,7 @@ export default function StudentPage() {
 
   async function handleOnboardingComplete(data: {
     readingLevel: ReadingLevel;
-    preferences: { theme: string; favoriteGenres: string[] };
+    preferences: { theme: string; favoriteGenres: string[]; coWriterMode: boolean };
   }) {
     await fetch('/api/student/onboarding', {
       method: 'POST',
@@ -190,13 +280,13 @@ export default function StudentPage() {
     // Apply theme to localStorage; ThemeWrapper listens for storage events
     if (data.preferences.theme) {
       localStorage.setItem('tanuki_theme', data.preferences.theme);
-      // Dispatch a storage event so ThemeWrapper (same window) reacts immediately
       window.dispatchEvent(new StorageEvent('storage', {
         key: 'tanuki_theme',
         newValue: data.preferences.theme,
         storageArea: localStorage,
       }));
     }
+    setCoWriterMode(data.preferences.coWriterMode ?? false);
     setOnboardingData((prev) => prev ? { ...prev, ...data, onboardingCompleted: true } : null);
     setShowOnboarding(false);
   }
@@ -214,7 +304,7 @@ export default function StudentPage() {
         <OnboardingModal
           allowedReadingLevels={onboardingData.allowedReadingLevels}
           initialReadingLevel={onboardingData.readingLevel}
-          initialPreferences={onboardingData.preferences}
+          initialPreferences={{ ...onboardingData.preferences, coWriterMode }}
           dismissable={onboardingData.onboardingCompleted}
           onComplete={handleOnboardingComplete}
           onDismiss={() => setShowOnboarding(false)}
@@ -477,22 +567,78 @@ export default function StudentPage() {
             {error && <div className="mt-2 text-red-500 text-sm">{error}</div>}
             <button
               onClick={handleGenerate}
-              disabled={generating || !request.trim()}
+              disabled={generating || planningStage !== 'idle' || !request.trim()}
               className={`mt-4 w-full text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${
                 infoMode
                   ? 'bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700'
                   : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700'
               }`}
             >
-              {generating ? (
+              {planningStage === 'planning' ? (
+                <><span className="animate-spin">⟳</span> Creating story plan…</>
+              ) : planningStage === 'starting' ? (
+                <><span className="animate-spin">⟳</span> Starting story…</>
+              ) : generating ? (
                 infoMode
                   ? <><span className="animate-spin">⟳</span> Researching &amp; writing…</>
                   : <><span className="animate-spin">⟳</span> Generating your story…</>
               ) : (
-                infoMode ? '🔍 Research &amp; Generate Article' : '✨ Generate Story'
+                infoMode ? '🔍 Research & Generate Article' : '✨ Generate Story'
               )}
             </button>
           </section>
+
+          {/* Planning stage — shown only in co-writer mode after plan is ready */}
+          {planningStage === 'editing' && editedPlan && (
+            <section className="glass-shimmer relative bg-white/[0.07] backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl"
+              style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.07) inset, 0 8px 32px rgba(0,0,0,0.2)' }}
+            >
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent rounded-t-3xl" />
+              <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                📝 Story Plan
+                <span className="text-xs font-normal bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 px-2 py-0.5 rounded-full">Co-writer mode</span>
+              </h2>
+              <p className="text-sm opacity-60 mb-5">Review and edit the story outline below, then click Generate to start writing.</p>
+
+              {(
+                [
+                  { key: 'exposition' as const, label: '🌅 Exposition', hint: 'Introduce characters and the world' },
+                  { key: 'risingAction' as const, label: '⬆️ Rising Action', hint: 'The challenge that builds tension' },
+                  { key: 'climax' as const, label: '⚡ Climax', hint: 'The peak dramatic moment' },
+                  { key: 'fallingAction' as const, label: '⬇️ Falling Action', hint: 'Aftermath of the climax' },
+                  { key: 'resolution' as const, label: '🌈 Resolution', hint: 'How it all ends' },
+                ] as { key: keyof StoryPlan; label: string; hint: string }[]
+              ).map(({ key, label, hint }) => (
+                <div key={key} className="mb-4">
+                  <label className="block text-sm font-medium mb-1 opacity-80">{label}</label>
+                  <p className="text-xs opacity-40 mb-1">{hint}</p>
+                  <textarea
+                    value={editedPlan[key]}
+                    onChange={(e) => setEditedPlan((p) => p ? { ...p, [key]: e.target.value } : p)}
+                    rows={2}
+                    className="w-full bg-black/5 border border-current/20 rounded-xl px-4 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+              ))}
+
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={() => { setPlanningStage('idle'); setEditedPlan(null); }}
+                  className="flex-1 py-2.5 rounded-xl border border-current/20 text-sm font-medium hover:bg-white/10 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => editedPlan && startStoryWithPlan(editedPlan)}
+                  className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold py-2.5 rounded-xl transition-all text-sm"
+                >
+                  ✨ Generate Story
+                </button>
+              </div>
+            </section>
+          )}
 
           {currentStory && (
             <section>

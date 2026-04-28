@@ -36,12 +36,12 @@ import { themes as THEME_OPTIONS } from './ThemeSelector';
 interface OnboardingModalProps {
   allowedReadingLevels: ReadingLevel[];
   initialReadingLevel?: ReadingLevel | null;
-  initialPreferences?: { theme?: string; favoriteGenres?: string[] };
+  initialPreferences?: { theme?: string; favoriteGenres?: string[]; coWriterMode?: boolean };
   /** Whether the student can skip/close (false = required first-time onboarding). */
   dismissable: boolean;
   onComplete: (data: {
     readingLevel: ReadingLevel;
-    preferences: { theme: string; favoriteGenres: string[] };
+    preferences: { theme: string; favoriteGenres: string[]; coWriterMode: boolean };
   }) => void;
   onDismiss?: () => void;
 }
@@ -60,6 +60,9 @@ export default function OnboardingModal({
   const [favoriteGenres, setFavoriteGenres] = useState<string[]>(
     initialPreferences?.favoriteGenres ?? [],
   );
+  const [coWriterMode, setCoWriterMode] = useState<boolean>(
+    initialPreferences?.coWriterMode ?? false,
+  );
   const [saving, setSaving] = useState(false);
 
   function toggleGenre(genre: string) {
@@ -71,7 +74,7 @@ export default function OnboardingModal({
   async function handleFinish() {
     if (!readingLevel) return;
     setSaving(true);
-    onComplete({ readingLevel, preferences: { theme, favoriteGenres } });
+    onComplete({ readingLevel, preferences: { theme, favoriteGenres, coWriterMode } });
   }
 
   return (
@@ -196,6 +199,31 @@ export default function OnboardingModal({
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Co-writer mode */}
+            <div>
+              <h3 className="font-semibold text-lg mb-1">✍️ Co-writer mode</h3>
+              <p className="text-purple-200 text-sm mb-3">
+                When enabled, you can review and edit the AI&rsquo;s story plan before it writes each chapter.
+              </p>
+              <button
+                type="button"
+                onClick={() => setCoWriterMode((v) => !v)}
+                className={`relative inline-flex items-center gap-3 px-4 py-3 rounded-2xl border w-full transition-all ${
+                  coWriterMode
+                    ? 'bg-indigo-600/30 border-indigo-400/60 text-indigo-200'
+                    : 'bg-white/10 border-white/20 opacity-70 hover:opacity-100'
+                }`}
+              >
+                <span className="text-xl">{coWriterMode ? '🤝' : '🤖'}</span>
+                <span className="text-sm font-medium">
+                  {coWriterMode ? 'Co-writer mode is ON' : 'Co-writer mode is OFF'}
+                </span>
+                <span className={`ml-auto w-10 h-5 rounded-full transition-colors flex-shrink-0 ${coWriterMode ? 'bg-indigo-500' : 'bg-white/20'}`}>
+                  <span className={`block w-4 h-4 mt-0.5 rounded-full bg-white shadow transition-transform ${coWriterMode ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </span>
+              </button>
             </div>
 
             <div className="flex gap-3 pt-2">

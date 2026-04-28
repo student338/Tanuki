@@ -1,4 +1,4 @@
-import type { StoryOptions } from './storage';
+import type { StoryOptions, StoryPlan } from './storage';
 import { MATURITY_LEVEL_DEFAULT } from './safety';
 
 /**
@@ -56,6 +56,25 @@ export interface GenerateOptions {
    * response in real information.
    */
   knowledgeContext?: string;
+  /** Pre-approved story plan to include in the generation prompt. */
+  plan?: StoryPlan;
+  /** 0-based index of the chapter being generated (for chapter-by-chapter mode). */
+  chapterIndex?: number;
+  /** Previously generated chapters, for context when writing subsequent chapters. */
+  previousChapters?: string[];
+  /** Optional student revision note for the current chapter. */
+  revisionNote?: string;
+}
+
+export interface PlanOptions {
+  systemPrompt: string;
+  userRequest: string;
+  storyOptions?: StoryOptions;
+  apiBaseUrl?: string;
+  model?: string;
+  localModelId?: string;
+  contentMaturityLevel?: number;
+  blockedTopics?: string[];
 }
 
 function buildUserMessage(userRequest: string, opts?: StoryOptions): string {
@@ -167,4 +186,194 @@ export async function generateStory(options: GenerateOptions): Promise<string> {
   });
 
   return response.choices[0]?.message?.content ?? 'Story generation failed.';
+}
+
+// ── Planning stage ────────────────────────────────────────────────────────────
+
+const PLAN_SYSTEM_PROMPT = `You are a creative story planner. Given a story request, create a concise five-part story plan in JSON. Return ONLY valid JSON with exactly these keys: "exposition", "risingAction", "climax", "fallingAction", "resolution". Each value should be 1-3 sentences summarising that narrative beat. Do not include any other text outside the JSON object.`;
+
+/** Generate a five-part story plan for the given request. */
+export async function planStory(options: PlanOptions): Promise<StoryPlan> {
+  const { userRequest, storyOptions, apiBaseUrl, model, localModelId, contentMaturityLevel, blockedTopics } = options;
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  const parts: string[] = [PLAN_SYSTEM_PROMPT];
+
+  const level = contentMaturityLevel !== undefined && contentMaturityLevel >= 1 && contentMaturityLevel <= 6
+    ? contentMaturityLevel
+    : MATURITY_LEVEL_DEFAULT;
+  const maturityInstruction = MATURITY_INSTRUCTIONS[level];
+  if (maturityInstruction) parts.push(`Content safety: ${maturityInstruction}`);
+  if (blockedTopics && blockedTopics.length > 0) {
+    parts.push(`Do not include content about the following topics: ${blockedTopics.join(', ')}.`);
+  }
+
+  const systemPrompt = parts.join('\n\n');
+  const userMessage = buildUserMessage(userRequest, storyOptions);
+
+  const demoPlan: StoryPlan = {
+    exposition: `We are introduced to the main character and the world of "${userRequest}".`,
+    risingAction: 'The protagonist faces a growing challenge that tests their courage and resolve.',
+    climax: 'The tension reaches its peak in a dramatic confrontation or turning point.',
+    fallingAction: 'The aftermath of the climax unfolds as the character begins to heal or rebuild.',
+    resolution: 'Peace is restored and the character emerges transformed by their journey.',
+  };
+
+  if (!apiKey && !apiBaseUrl) {
+    await new Promise((r) => setTimeout(r, 500));
+    return demoPlan;
+  }
+
+  if (localModelId) {
+    const { generateWithLocalModel } = await import('./local-model');
+    const prompt = `${systemPrompt}\n\n${userMessage}`;
+    const raw = await generateWithLocalModel(localModelId, prompt, 400);
+    try {
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (jsonMatch) return JSON.parse(jsonMatch[0]) as StoryPlan;
+    } catch { /* fall through to demo */ }
+    return demoPlan;
+  }
+
+  const OpenAI = (await import('openai')).default;
+  const client = new OpenAI({
+    apiKey: apiKey ?? 'no-key',
+    ...(apiBaseUrl ? { baseURL: apiBaseUrl } : {}),
+  });
+
+  try {
+    const response = await client.chat.completions.create({
+      model: model ?? 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      max_tokens: 500,
+    });
+    const raw = response.choices[0]?.message?.content ?? '';
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (jsonMatch) return JSON.parse(jsonMatch[0]) as StoryPlan;
+  } catch { /* fall through to demo */ }
+  return demoPlan;
+}
+
+// ── Chapter streaming ─────────────────────────────────────────────────────────
+
+function buildChapterUserMessage(
+  userRequest: string,
+  opts: StoryOptions | undefined,
+  plan: StoryPlan,
+  chapterIndex: number,
+  totalChapters: number,
+  previousChapters: string[],
+  revisionNote: string | undefined,
+): string {
+  const parts: string[] = [];
+
+  if (opts?.title) parts.push(`Story title: ${opts.title}`);
+  if (opts?.genre) parts.push(`Genre: ${opts.genre}`);
+  if (opts?.readingLevel) parts.push(`Reading level: ${opts.readingLevel}`);
+  if (opts?.readingComplexity) parts.push(`Reading complexity: ${opts.readingComplexity}`);
+  if (opts?.vocabularyComplexity) parts.push(`Vocabulary complexity: ${opts.vocabularyComplexity}`);
+
+  parts.push(`Story request: ${userRequest}`);
+  parts.push(`\nStory plan:\n- Exposition: ${plan.exposition}\n- Rising action: ${plan.risingAction}\n- Climax: ${plan.climax}\n- Falling action: ${plan.fallingAction}\n- Resolution: ${plan.resolution}`);
+
+  if (previousChapters.length > 0) {
+    const recent = previousChapters.slice(-2);
+    parts.push(`\nPrevious chapter(s):\n${recent.map((c, i) => `Chapter ${chapterIndex - recent.length + i + 1}:\n${c}`).join('\n\n')}`);
+  }
+
+  parts.push(`\nNow write Chapter ${chapterIndex + 1} of ${totalChapters}.`);
+  if (revisionNote) {
+    parts.push(`The student has a revision request for this chapter: ${revisionNote}`);
+  }
+
+  return parts.join('\n');
+}
+
+/**
+ * Stream a single chapter as an async generator of text deltas.
+ * Yields string fragments as they arrive from the model.
+ */
+export async function* generateChapterStream(
+  options: GenerateOptions & { plan: StoryPlan; chapterIndex: number },
+): AsyncGenerator<string> {
+  const {
+    systemPrompt,
+    userRequest,
+    storyOptions,
+    apiBaseUrl,
+    model,
+    localModelId,
+    contentMaturityLevel,
+    blockedTopics,
+    plan,
+    chapterIndex,
+    previousChapters = [],
+    revisionNote,
+  } = options;
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  const totalChapters = storyOptions?.chapterCount ?? 1;
+
+  const promptParts: string[] = [
+    systemPrompt || 'You are a creative story writer. Write an engaging, age-appropriate story chapter.',
+    'Write only the prose content of the chapter — no headings, no labels, just the narrative text.',
+  ];
+
+  const level = contentMaturityLevel !== undefined && contentMaturityLevel >= 1 && contentMaturityLevel <= 6
+    ? contentMaturityLevel
+    : MATURITY_LEVEL_DEFAULT;
+  const maturityInstruction = MATURITY_INSTRUCTIONS[level];
+  if (maturityInstruction) promptParts.push(`Content safety: ${maturityInstruction}`);
+  if (blockedTopics && blockedTopics.length > 0) {
+    promptParts.push(`Do not include content about the following topics: ${blockedTopics.join(', ')}.`);
+  }
+
+  const effectiveSystemPrompt = promptParts.join('\n\n');
+  const userMessage = buildChapterUserMessage(
+    userRequest, storyOptions, plan, chapterIndex, totalChapters, previousChapters, revisionNote,
+  );
+
+  const maxTokens = 600;
+
+  if (!apiKey && !apiBaseUrl) {
+    await new Promise((r) => setTimeout(r, 400));
+    const demo = `Chapter ${chapterIndex + 1}: Once upon a time, the story continued with great wonder and adventure. [Demo chapter — no API key configured. Configure an API key in your .env.local file to enable real generation.]`;
+    for (const char of demo) {
+      yield char;
+      await new Promise((r) => setTimeout(r, 8));
+    }
+    return;
+  }
+
+  if (localModelId) {
+    const { generateWithLocalModel } = await import('./local-model');
+    const prompt = `${effectiveSystemPrompt}\n\n${userMessage}`;
+    const full = await generateWithLocalModel(localModelId, prompt, maxTokens);
+    yield full;
+    return;
+  }
+
+  const OpenAI = (await import('openai')).default;
+  const client = new OpenAI({
+    apiKey: apiKey ?? 'no-key',
+    ...(apiBaseUrl ? { baseURL: apiBaseUrl } : {}),
+  });
+
+  const stream = await client.chat.completions.create({
+    model: model ?? 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: effectiveSystemPrompt },
+      { role: 'user', content: userMessage },
+    ],
+    max_tokens: maxTokens,
+    stream: true,
+  });
+
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content ?? '';
+    if (delta) yield delta;
+  }
 }

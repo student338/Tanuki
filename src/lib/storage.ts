@@ -127,10 +127,24 @@ export interface StoryOptions {
   baseStoryContext?: string;
 }
 
+/**
+ * Narrative plan produced by the planning stage.
+ * Each field is a short summary / outline of that story beat.
+ */
+export interface StoryPlan {
+  exposition: string;
+  risingAction: string;
+  climax: string;
+  fallingAction: string;
+  resolution: string;
+}
+
 export interface Story {
   id: string;
   username: string;
   request: string;
+  /** Full concatenated story text.  For chapter-based stories this is rebuilt
+   *  automatically from the `chapters` array whenever a new chapter is saved. */
   story: string;
   title?: string;
   options?: StoryOptions;
@@ -138,6 +152,18 @@ export interface Story {
   updatedAt?: string;
   /** True when the story was generated in Info Mode (nonfiction). */
   infoMode?: boolean;
+  /** AI-generated story plan produced during the planning stage. */
+  plan?: StoryPlan;
+  /**
+   * Individual chapter texts for chapter-by-chapter generation.
+   * Absent on legacy stories that were generated all at once.
+   */
+  chapters?: string[];
+  /**
+   * True once all planned chapters have been streamed and saved.
+   * Absent / false while generation is still in progress.
+   */
+  generationComplete?: boolean;
 }
 
 export function getConfig(): Config {
@@ -192,6 +218,49 @@ export function updateStory(id: string, content: string): Story | null {
   return stories[idx];
 }
 
+/**
+ * Save a brand-new chapter-based story record with an empty chapters array.
+ * `story` is initialised to an empty string and will be filled as chapters
+ * are appended.
+ */
+export function saveChapterStory(record: Omit<Story, 'story'> & { story?: string }): Story {
+  const full: Story = { story: '', ...record };
+  const stories = getStories();
+  stories.unshift(full);
+  fs.writeFileSync(STORIES_FILE, JSON.stringify(stories, null, 2));
+  return full;
+}
+
+/** Append a completed chapter to a chapter-based story and rebuild `story`. */
+export function appendChapter(id: string, chapterText: string): Story | null {
+  const stories = getStories();
+  const idx = stories.findIndex((s) => s.id === id);
+  if (idx === -1) return null;
+  const chapters = [...(stories[idx].chapters ?? []), chapterText];
+  stories[idx] = {
+    ...stories[idx],
+    chapters,
+    story: chapters.join('\n\n'),
+    updatedAt: new Date().toISOString(),
+  };
+  fs.writeFileSync(STORIES_FILE, JSON.stringify(stories, null, 2));
+  return stories[idx];
+}
+
+/** Mark a chapter-based story as fully generated. */
+export function markStoryComplete(id: string): Story | null {
+  const stories = getStories();
+  const idx = stories.findIndex((s) => s.id === id);
+  if (idx === -1) return null;
+  stories[idx] = {
+    ...stories[idx],
+    generationComplete: true,
+    updatedAt: new Date().toISOString(),
+  };
+  fs.writeFileSync(STORIES_FILE, JSON.stringify(stories, null, 2));
+  return stories[idx];
+}
+
 // ── Stored student users ─────────────────────────────────────────────────────
 
 export interface StudentPreferences {
@@ -199,6 +268,11 @@ export interface StudentPreferences {
   theme?: string;
   /** Student's preferred story genres */
   favoriteGenres?: string[];
+  /**
+   * When true the student sees the AI-generated story plan before generation
+   * and may edit it (Co-writer mode).
+   */
+  coWriterMode?: boolean;
 }
 
 export interface StoredUser {
