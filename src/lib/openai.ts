@@ -44,6 +44,18 @@ export interface GenerateOptions {
    * continues the source material.
    */
   baseStoryContext?: string;
+  /**
+   * When true, switches generation from fiction to nonfiction ("Info Mode").
+   * The system prompt and user message are adjusted so the model writes a
+   * factual article / report rather than a story.
+   */
+  infoMode?: boolean;
+  /**
+   * Factual context gathered from the local knowledge base and/or web search.
+   * Injected into the prompt when infoMode is true so the model grounds its
+   * response in real information.
+   */
+  knowledgeContext?: string;
 }
 
 function buildUserMessage(userRequest: string, opts?: StoryOptions): string {
@@ -70,14 +82,40 @@ function buildUserMessage(userRequest: string, opts?: StoryOptions): string {
   return parts.join('\n');
 }
 
+function buildInfoUserMessage(userRequest: string, knowledgeContext: string | undefined, opts?: StoryOptions): string {
+  const parts: string[] = [];
+
+  if (opts?.title) parts.push(`Title: ${opts.title}`);
+  if (opts?.chapterCount && opts.chapterCount > 1) {
+    parts.push(`Number of sections: ${opts.chapterCount}`);
+  }
+  if (opts?.readingLevel) parts.push(`Reading level: ${opts.readingLevel}`);
+  if (opts?.readingComplexity) parts.push(`Reading complexity level: ${opts.readingComplexity}`);
+  if (opts?.vocabularyComplexity) parts.push(`Vocabulary complexity: ${opts.vocabularyComplexity}`);
+
+  if (knowledgeContext && knowledgeContext.trim()) {
+    parts.push(`Reference information:\n${knowledgeContext.trim()}`);
+  }
+
+  parts.push(`Topic: ${userRequest}`);
+
+  return parts.join('\n\n');
+}
+
 export async function generateStory(options: GenerateOptions): Promise<string> {
-  const { systemPrompt, userRequest, storyOptions, apiBaseUrl, model, localModelId, contentMaturityLevel, blockedTopics } = options;
+  const { systemPrompt, userRequest, storyOptions, apiBaseUrl, model, localModelId, contentMaturityLevel, blockedTopics, infoMode, knowledgeContext } = options;
   const apiKey = process.env.OPENAI_API_KEY;
 
-  const userMessage = buildUserMessage(userRequest, storyOptions);
+  const userMessage = infoMode
+    ? buildInfoUserMessage(userRequest, knowledgeContext, storyOptions)
+    : buildUserMessage(userRequest, storyOptions);
 
   // Build effective system prompt with maturity and topic-blocking clauses
-  const promptParts: string[] = [systemPrompt];
+  const basePrompt = infoMode
+    ? 'You are a knowledgeable nonfiction writer. Write an accurate, engaging, well-structured nonfiction article or report based on the provided topic and reference information. Use only factual information — do not invent facts. Structure the writing clearly with an introduction, body sections, and a conclusion.'
+    : systemPrompt;
+
+  const promptParts: string[] = [basePrompt];
 
   const level = contentMaturityLevel !== undefined && contentMaturityLevel >= 1 && contentMaturityLevel <= 6
     ? contentMaturityLevel
@@ -107,6 +145,9 @@ export async function generateStory(options: GenerateOptions): Promise<string> {
   // ── External API (OpenAI or compatible) ─────────────────────────────────
   if (!apiKey && !apiBaseUrl) {
     await new Promise((r) => setTimeout(r, 800));
+    if (infoMode) {
+      return `[Demo nonfiction article — no API key configured. Topic: "${userRequest}"]\n\nThis is where a factual, well-researched article about "${userRequest}" would appear. Configure an API key in your .env.local file to enable real generation.`;
+    }
     return `Once upon a time in a land far away, there was a great adventure waiting to unfold. [This is a demo story since no API key is configured. Your request was: "${userRequest}"] The end.`;
   }
 

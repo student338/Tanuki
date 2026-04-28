@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getConfig, getStoredUsers, getEffectiveMaturitySettings, getEffectiveMaturityRange, saveStory, StoryOptions } from '@/lib/storage';
 import { generateStory } from '@/lib/openai';
+import { searchKnowledgeBase } from '@/lib/knowledge-base';
+import { searchWeb } from '@/lib/web-search';
 import { randomUUID } from 'crypto';
 
 export async function POST(req: NextRequest) {
@@ -11,6 +13,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { request } = body as { request?: string };
   if (!request?.trim()) return NextResponse.json({ error: 'Request is required' }, { status: 400 });
+
+  const infoMode = body.infoMode === true;
 
   const config = getConfig();
   const userCfg = config.userConfigs?.[user.username];
@@ -55,6 +59,35 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── Info Mode: gather knowledge context ──────────────────────────────────
+  let knowledgeContext: string | undefined;
+  if (infoMode) {
+    const [kbResults, webResults] = await Promise.all([
+      searchKnowledgeBase(request.trim(), 3),
+      searchWeb(request.trim(), 5),
+    ]);
+
+    const contextParts: string[] = [];
+
+    if (kbResults.length > 0) {
+      contextParts.push('== Knowledge Base ==');
+      for (const doc of kbResults) {
+        contextParts.push(`[${doc.title}]\n${doc.content}`);
+      }
+    }
+
+    if (webResults.length > 0) {
+      contextParts.push('== Web Search Results ==');
+      for (const result of webResults) {
+        contextParts.push(`[${result.title}] ${result.url}\n${result.snippet}`);
+      }
+    }
+
+    if (contextParts.length > 0) {
+      knowledgeContext = contextParts.join('\n\n');
+    }
+  }
+
   let story: string;
   try {
     story = await generateStory({
@@ -66,6 +99,8 @@ export async function POST(req: NextRequest) {
       localModelId: config.localModelId,
       contentMaturityLevel,
       blockedTopics,
+      infoMode,
+      knowledgeContext,
     });
   } catch (err) {
     console.error('Story generation error:', err);
@@ -80,6 +115,7 @@ export async function POST(req: NextRequest) {
     title: effectiveOptions.title,
     options: effectiveOptions,
     createdAt: new Date().toISOString(),
+    ...(infoMode ? { infoMode: true } : {}),
   };
   saveStory(storyRecord);
   return NextResponse.json(storyRecord);

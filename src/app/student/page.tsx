@@ -48,6 +48,9 @@ export default function StudentPage() {
   const [error, setError] = useState('');
   const [showOptions, setShowOptions] = useState(false);
 
+  // Info Mode toggle
+  const [infoMode, setInfoMode] = useState(false);
+
   // Theme state (synced with ThemeWrapper via localStorage + StorageEvent)
   const [theme, setThemeState] = useState<Theme>('light');
 
@@ -156,9 +159,10 @@ export default function StudentPage() {
         chapterCount: options.chapterCount,
         readingComplexity: options.readingComplexity,
         vocabularyComplexity: options.vocabularyComplexity,
-        genre: options.genre || undefined,
-        plot: options.plot || undefined,
+        genre: infoMode ? undefined : (options.genre || undefined),
+        plot: infoMode ? undefined : (options.plot || undefined),
         contentMaturityLevel,
+        infoMode,
       }),
     });
     const data = await res.json();
@@ -255,22 +259,57 @@ export default function StudentPage() {
           >
             {/* top highlight */}
             <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent rounded-t-3xl" />
-            <h2 className="text-lg font-semibold mb-4">✍️ Request a Story</h2>
+
+            {/* Mode toggle */}
+            <div className="flex items-center gap-1 mb-4 bg-black/10 rounded-2xl p-1 w-fit">
+              <button
+                type="button"
+                onClick={() => setInfoMode(false)}
+                className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                  !infoMode ? 'bg-indigo-600 text-white shadow' : 'opacity-60 hover:opacity-90'
+                }`}
+              >
+                ✨ Story Mode
+              </button>
+              <button
+                type="button"
+                onClick={() => setInfoMode(true)}
+                className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                  infoMode ? 'bg-teal-600 text-white shadow' : 'opacity-60 hover:opacity-90'
+                }`}
+              >
+                🔍 Info Mode
+              </button>
+            </div>
+
+            {infoMode && (
+              <div className="mb-4 text-xs bg-teal-500/10 border border-teal-400/20 rounded-xl px-4 py-2 text-teal-300">
+                Info Mode searches the local knowledge base and the web, then asks the AI to write a factual nonfiction article.
+              </div>
+            )}
+
+            <h2 className="text-lg font-semibold mb-4">
+              {infoMode ? '🔍 Research a Topic' : '✍️ Request a Story'}
+            </h2>
             <textarea
               value={request}
               onChange={(e) => setRequest(e.target.value)}
               rows={4}
               className="w-full bg-black/5 border border-current/20 rounded-xl p-4 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 placeholder-current/40"
-              placeholder="Describe the story you want… e.g. 'A brave fox who discovers a hidden treasure in the forest'"
+              placeholder={
+                infoMode
+                  ? 'Enter a topic to research… e.g. "The water cycle" or "The history of ancient Egypt"'
+                  : 'Describe the story you want… e.g. \'A brave fox who discovers a hidden treasure in the forest\''
+              }
             />
 
-            {/* Story options toggle */}
+            {/* Options toggle */}
             <button
               type="button"
               onClick={() => setShowOptions((v) => !v)}
               className="mt-3 text-sm opacity-60 hover:opacity-100 transition-opacity flex items-center gap-1"
             >
-              <span>{showOptions ? '▾' : '▸'}</span> Story options
+              <span>{showOptions ? '▾' : '▸'}</span> {infoMode ? 'Article options' : 'Story options'}
             </button>
 
             {showOptions && (
@@ -287,7 +326,8 @@ export default function StudentPage() {
                   />
                 </div>
 
-                {/* Genre */}
+                {/* Genre — hidden in Info Mode */}
+                {!infoMode && (
                 <div>
                   <label className="block text-sm font-medium mb-1 opacity-80">
                     Genre {lockBadge('genre')}
@@ -302,11 +342,12 @@ export default function StudentPage() {
                     {GENRES.map((g) => <option key={g} value={g}>{g}</option>)}
                   </select>
                 </div>
+                )}
 
-                {/* Chapter count */}
+                {/* Chapter / section count */}
                 <div>
                   <label className="block text-sm font-medium mb-1 opacity-80">
-                    Chapters {lockBadge('chapterCount')}
+                    {infoMode ? 'Sections' : 'Chapters'} {lockBadge('chapterCount')}
                   </label>
                   <input
                     type="number"
@@ -366,7 +407,8 @@ export default function StudentPage() {
                   </div>
                 </div>
 
-                {/* Plot outline */}
+                {/* Plot outline — hidden in Info Mode */}
+                {!infoMode && (
                 <div>
                   <label className="block text-sm font-medium mb-1 opacity-80">Plot outline (optional)</label>
                   <textarea
@@ -377,6 +419,7 @@ export default function StudentPage() {
                     className="w-full bg-black/5 border border-current/20 rounded-xl px-4 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 placeholder-current/30"
                   />
                 </div>
+                )}
 
                 {/* Content maturity */}
                 {(maturityRange.max > maturityRange.min || maturityRange.max === MATURITY_LEVEL_MAX) && (
@@ -435,26 +478,34 @@ export default function StudentPage() {
             <button
               onClick={handleGenerate}
               disabled={generating || !request.trim()}
-              className="mt-4 w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              className={`mt-4 w-full text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${
+                infoMode
+                  ? 'bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700'
+                  : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700'
+              }`}
             >
               {generating ? (
-                <><span className="animate-spin">⟳</span> Generating your story…</>
+                infoMode
+                  ? <><span className="animate-spin">⟳</span> Researching &amp; writing…</>
+                  : <><span className="animate-spin">⟳</span> Generating your story…</>
               ) : (
-                '✨ Generate Story'
+                infoMode ? '🔍 Research &amp; Generate Article' : '✨ Generate Story'
               )}
             </button>
           </section>
 
           {currentStory && (
             <section>
-              <h2 className="text-lg font-semibold mb-4">📖 Your Story</h2>
+              <h2 className="text-lg font-semibold mb-4">
+                {currentStory.infoMode ? '📰 Your Article' : '📖 Your Story'}
+              </h2>
               <StoryCard story={currentStory} onUpdated={handleStoryUpdated} />
             </section>
           )}
 
           {stories.length > 0 && (
             <section>
-              <h2 className="text-lg font-semibold mb-4">📚 Your Story History ({stories.length})</h2>
+              <h2 className="text-lg font-semibold mb-4">📚 Your History ({stories.length})</h2>
               <div className="space-y-4">
                 {stories.map((s) => (
                   <StoryCard key={s.id} story={s} onUpdated={handleStoryUpdated} />

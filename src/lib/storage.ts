@@ -10,6 +10,7 @@ const STORIES_FILE = path.join(DATA_DIR, 'stories.json');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const RECORDINGS_FILE = path.join(DATA_DIR, 'recordings.json');
 export const RECORDINGS_DIR = path.join(DATA_DIR, 'recordings');
+const KNOWLEDGE_BASE_FILE = path.join(DATA_DIR, 'knowledge-base.json');
 
 const DEFAULT_SYSTEM_PROMPT =
   'You are a creative story writer. Write an engaging, age-appropriate story based on the student\'s request.';
@@ -135,6 +136,8 @@ export interface Story {
   options?: StoryOptions;
   createdAt: string;
   updatedAt?: string;
+  /** True when the story was generated in Info Mode (nonfiction). */
+  infoMode?: boolean;
 }
 
 export function getConfig(): Config {
@@ -449,4 +452,59 @@ export function getEffectiveMaturityRange(username: string): { min: number; max:
     min: Math.max(globalMin, classroomMin),
     max: Math.min(globalMax, classroomMax),
   };
+}
+
+// ── Knowledge Base ────────────────────────────────────────────────────────────
+
+/**
+ * A document stored in the local knowledge base, used by Info Mode to supply
+ * factual context to the AI when generating nonfiction content.
+ */
+export interface KnowledgeDocument {
+  /** Unique identifier for the document. */
+  id: string;
+  /** Short human-readable title. */
+  title: string;
+  /** Full text content of the document. */
+  content: string;
+  /** Optional topic tags for display / filtering. */
+  tags?: string[];
+  /** ISO 8601 creation timestamp. */
+  createdAt: string;
+  /**
+   * Precomputed embedding vector for the document content.
+   * Stored alongside the document to avoid re-embedding on every search.
+   */
+  embedding?: number[];
+}
+
+export function getKnowledgeDocuments(): KnowledgeDocument[] {
+  ensureDataDir();
+  if (!fs.existsSync(KNOWLEDGE_BASE_FILE)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(KNOWLEDGE_BASE_FILE, 'utf-8')) as KnowledgeDocument[];
+  } catch {
+    console.error('Failed to parse knowledge-base.json — returning empty list');
+    return [];
+  }
+}
+
+export function saveKnowledgeDocument(doc: KnowledgeDocument): void {
+  ensureDataDir();
+  const docs = getKnowledgeDocuments();
+  const idx = docs.findIndex((d) => d.id === doc.id);
+  if (idx !== -1) {
+    docs[idx] = doc;
+  } else {
+    docs.push(doc);
+  }
+  fs.writeFileSync(KNOWLEDGE_BASE_FILE, JSON.stringify(docs, null, 2));
+}
+
+export function deleteKnowledgeDocument(id: string): boolean {
+  const docs = getKnowledgeDocuments();
+  const filtered = docs.filter((d) => d.id !== id);
+  if (filtered.length === docs.length) return false;
+  fs.writeFileSync(KNOWLEDGE_BASE_FILE, JSON.stringify(filtered, null, 2));
+  return true;
 }
