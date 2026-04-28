@@ -127,13 +127,23 @@ export default function AdminPage() {
   }, []);
 
   const load = useCallback(async () => {
-    const [cfgRes, storyRes] = await Promise.all([
+    let [cfgRes, storyRes] = await Promise.all([
       fetch('/api/admin/config'),
       fetch('/api/stories'),
     ]);
-    if (cfgRes.status === 403 || cfgRes.status === 401) { router.push('/login'); return; }
+    if (cfgRes.status === 403 || cfgRes.status === 401) {
+      // On iOS/iPadOS the httpOnly session cookie written by the login fetch
+      // may not be flushed to the cookie jar before the first in-page requests
+      // fire after window.location.replace. Retry once after a brief delay.
+      await new Promise((r) => setTimeout(r, 500));
+      [cfgRes, storyRes] = await Promise.all([
+        fetch('/api/admin/config'),
+        fetch('/api/stories'),
+      ]);
+      if (cfgRes.status === 403 || cfgRes.status === 401) { router.push('/login'); return; }
+    }
     const cfg = await cfgRes.json();
-    const storiesData = await storyRes.json();
+    const storiesData = storyRes.ok ? await storyRes.json() : [];
     setSystemPrompt(cfg.systemPrompt ?? '');
     setApiBaseUrl(cfg.apiBaseUrl ?? '');
     setModel(cfg.model ?? '');
