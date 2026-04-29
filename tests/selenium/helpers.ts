@@ -20,7 +20,9 @@ export function buildDriver(): WebDriver {
 
   // Use the system chromedriver explicitly to avoid Selenium Manager's
   // attempt to download a driver from the network.
-  const service = new ServiceBuilder('/usr/bin/chromedriver');
+  // Override via the CHROMEDRIVER_PATH environment variable when needed.
+  const driverPath = process.env.CHROMEDRIVER_PATH ?? '/usr/bin/chromedriver';
+  const service = new ServiceBuilder(driverPath);
 
   return new Builder()
     .forBrowser('chrome')

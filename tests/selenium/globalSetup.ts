@@ -15,30 +15,32 @@ declare global {
   var __NEXT_SERVER__: ChildProcess | undefined;
 }
 
-function waitForServer(url: string, retries = 40, delay = 1000): Promise<void> {
+function waitForServer(url: string, retries = 40, initialDelay = 500): Promise<void> {
   return new Promise((resolve, reject) => {
     let attempts = 0;
-    const check = () => {
+    const check = (delay: number) => {
       http
         .get(url, (res) => {
           res.resume();
           if (res.statusCode && res.statusCode < 500) {
             resolve();
           } else {
-            retry();
+            retry(delay);
           }
         })
-        .on('error', retry);
+        .on('error', () => retry(delay));
     };
-    const retry = () => {
+    const retry = (prevDelay: number) => {
       attempts++;
       if (attempts >= retries) {
         reject(new Error(`Server at ${url} did not start after ${retries} attempts`));
         return;
       }
-      setTimeout(check, delay);
+      // Exponential back-off capped at 4 seconds
+      const nextDelay = Math.min(prevDelay * 2, 4000);
+      setTimeout(() => check(nextDelay), nextDelay);
     };
-    check();
+    check(initialDelay);
   });
 }
 
