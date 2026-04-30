@@ -52,6 +52,8 @@ interface StudentAnalytics {
 
 export default function AdminPage() {
   const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<{ username: string; role: string } | null>(null);
+  const isTeacher = currentUser?.role === 'teacher';
   const [systemPrompt, setSystemPrompt] = useState('');
   const [apiBaseUrl, setApiBaseUrl] = useState('');
   const [model, setModel] = useState('');
@@ -86,6 +88,18 @@ export default function AdminPage() {
   const [csvText, setCsvText] = useState('');
   const [csvImporting, setCsvImporting] = useState(false);
   const csvFileRef = useRef<HTMLInputElement>(null);
+
+  // Teacher management
+  interface TeacherInfo {
+    username: string;
+    managedClassroomIds: string[];
+  }
+  const [teachers, setTeachers] = useState<TeacherInfo[]>([]);
+  const [newTeacherUsername, setNewTeacherUsername] = useState('');
+  const [newTeacherPassword, setNewTeacherPassword] = useState('');
+  const [newTeacherClassroomIds, setNewTeacherClassroomIds] = useState<string[]>([]);
+  const [teacherError, setTeacherError] = useState('');
+  const [teacherSuccess, setTeacherSuccess] = useState('');
 
   // Analytics
   const [analytics, setAnalytics] = useState<StudentAnalytics[]>([]);
@@ -131,44 +145,60 @@ export default function AdminPage() {
   }, []);
 
   const load = useCallback(async () => {
-    let [cfgRes, storyRes] = await Promise.all([
+    // Fetch config and current user identity in parallel.
+    let [cfgRes, meRes] = await Promise.all([
       fetch('/api/admin/config'),
-      fetch('/api/stories'),
+      fetch('/api/auth/me'),
     ]);
     if (cfgRes.status === 403 || cfgRes.status === 401) {
       // On iOS/iPadOS the httpOnly session cookie written by the login fetch
       // may not be flushed to the cookie jar before the first in-page requests
       // fire after window.location.replace. Retry once after a brief delay.
       await new Promise((r) => setTimeout(r, 500));
-      [cfgRes, storyRes] = await Promise.all([
+      [cfgRes, meRes] = await Promise.all([
         fetch('/api/admin/config'),
-        fetch('/api/stories'),
+        fetch('/api/auth/me'),
       ]);
       if (cfgRes.status === 403 || cfgRes.status === 401) { router.push('/login'); return; }
     }
     const cfg = await cfgRes.json();
-    const storiesData = storyRes.ok ? await storyRes.json() : [];
+    const meData = meRes.ok ? await meRes.json() : null;
+    const userRole = meData?.user?.role as string | undefined;
+    setCurrentUser(meData?.user ?? null);
     setSystemPrompt(cfg.systemPrompt ?? '');
     setApiBaseUrl(cfg.apiBaseUrl ?? '');
     setModel(cfg.model ?? '');
     setLocalModelId(cfg.localModelId ?? '');
     setUserConfigs(cfg.userConfigs ?? {});
-    const storyList = Array.isArray(storiesData) ? storiesData : [];
-    setStories(storyList);
     if (cfg.readingLevelRange) {
       setRlRangeMin(cfg.readingLevelRange.min ?? 'Pre-K');
       setRlRangeMax(cfg.readingLevelRange.max ?? 'Doctorate');
     }
     setGlobalSafety(cfg.globalSafety ?? {});
     setClassrooms(cfg.classrooms ?? {});
-    // Load recordings separately after stories are known
-    if (storyList.length > 0) {
-      const results = await Promise.all(
-        storyList.map((s: Story) =>
-          fetch(`/api/stories/${s.id}/recordings`).then((r) => r.ok ? r.json() : []),
-        ),
-      );
-      setRecordings(results.flat());
+
+    // Admin-only: load stories, recordings, and teacher accounts.
+    if (userRole !== 'teacher') {
+      const [storyRes, teachersRes] = await Promise.all([
+        fetch('/api/stories'),
+        fetch('/api/admin/teachers'),
+      ]);
+      const storiesData = storyRes.ok ? await storyRes.json() : [];
+      const storyList = Array.isArray(storiesData) ? storiesData : [];
+      setStories(storyList);
+      if (teachersRes.ok) {
+        const data = await teachersRes.json();
+        setTeachers(Array.isArray(data) ? data : []);
+      }
+      // Load recordings separately after stories are known
+      if (storyList.length > 0) {
+        const results = await Promise.all(
+          storyList.map((s: Story) =>
+            fetch(`/api/stories/${s.id}/recordings`).then((r) => r.ok ? r.json() : []),
+          ),
+        );
+        setRecordings(results.flat());
+      }
     }
   }, [router]);
 
@@ -227,7 +257,7 @@ export default function AdminPage() {
     await fetch('/api/admin/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ systemPrompt, classrooms }),
+      body: JSON.stringify(isTeacher ? { classrooms } : { systemPrompt, classrooms }),
     });
     setClassroomsSaving(false);
     setClassroomsSaved(true);
@@ -382,6 +412,54 @@ export default function AdminPage() {
     reader.readAsText(file);
   }
 
+  async function handleAddTeacher(e: React.FormEvent) {
+    e.preventDefault();
+    setTeacherError('');
+    setTeacherSuccess('');
+    if (!newTeacherUsername.trim() || !newTeacherPassword.trim()) {
+      setTeacherError('Username and password are required.');
+      return;
+    }
+    const res = await fetch('/api/admin/teachers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: newTeacherUsername.trim(),
+        password: newTeacherPassword.trim(),
+        managedClassroomIds: newTeacherClassroomIds,
+      }),
+    });
+    if (!res.ok) {
+      const d = await res.json();
+      setTeacherError(d.error ?? 'Failed to add teacher.');
+      return;
+    }
+    setNewTeacherUsername('');
+    setNewTeacherPassword('');
+    setNewTeacherClassroomIds([]);
+    setTeacherSuccess('Teacher added.');
+    setTimeout(() => setTeacherSuccess(''), 2000);
+    const refreshed = await fetch('/api/admin/teachers');
+    if (refreshed.ok) setTeachers(await refreshed.json());
+  }
+
+  async function handleDeleteTeacher(username: string) {
+    if (!confirm(`Delete teacher "${username}"?`)) return;
+    await fetch(`/api/admin/students/${encodeURIComponent(username)}`, { method: 'DELETE' });
+    const refreshed = await fetch('/api/admin/teachers');
+    if (refreshed.ok) setTeachers(await refreshed.json());
+  }
+
+  async function handleUpdateTeacherClassrooms(username: string, classroomIds: string[]) {
+    await fetch(`/api/admin/students/${encodeURIComponent(username)}/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ managedClassroomIds: classroomIds }),
+    });
+    const refreshed = await fetch('/api/admin/teachers');
+    if (refreshed.ok) setTeachers(await refreshed.json());
+  }
+
   // Derive the effective global maturity range for constraining per-student sliders
   const effectiveGlobalMin = globalSafety.maturityLevelRange?.min ?? MATURITY_LEVEL_MIN;
   const effectiveGlobalMax = globalSafety.maturityLevelRange?.max ?? MATURITY_LEVEL_MAX;
@@ -391,7 +469,7 @@ export default function AdminPage() {
       <header className="border-b border-white/10 px-6 py-4 flex justify-between items-center backdrop-blur-sm bg-white/5">
         <div className="flex items-center gap-3">
           <span className="text-2xl">🦝</span>
-          <h1 className="text-xl font-bold">Tanuki Stories — Admin</h1>
+          <h1 className="text-xl font-bold">Tanuki Stories — {isTeacher ? 'Teacher Dashboard' : 'Admin'}</h1>
         </div>
         <button
           onClick={handleLogout}
@@ -403,7 +481,8 @@ export default function AdminPage() {
 
       <main className="max-w-4xl mx-auto p-6 space-y-8">
 
-        {/* API Configuration */}
+        {/* API Configuration — admin only */}
+        {!isTeacher && (
         <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <span>🔌</span> API Configuration
@@ -479,8 +558,10 @@ export default function AdminPage() {
             {saved && <span className="text-green-400 text-sm">✓ Saved!</span>}
           </div>
         </section>
+        )} {/* end !isTeacher API Configuration */}
 
-        {/* Student Management */}
+        {/* Student Management — admin only */}
+        {!isTeacher && (
         <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-6">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <span>👥</span> Student Management
@@ -574,8 +655,10 @@ export default function AdminPage() {
           {studentError && <p className="text-red-400 text-sm">{studentError}</p>}
           {studentSuccess && <p className="text-green-400 text-sm">✓ {studentSuccess}</p>}
         </section>
+        )} {/* end !isTeacher Student Management */}
 
-        {/* Per-user locked fields */}
+        {/* Per-user locked fields — admin only */}
+        {!isTeacher && (
         <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-6">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <span>🔒</span> Student Configuration Locks
@@ -674,8 +757,10 @@ export default function AdminPage() {
             {saved && <span className="text-green-400 text-sm">✓ Saved!</span>}
           </div>
         </section>
+        )} {/* end !isTeacher Config Locks */}
 
-        {/* Reading Level Range */}
+        {/* Reading Level Range — admin only */}
+        {!isTeacher && (
         <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <span>📖</span> Onboarding Reading Level Range
@@ -723,8 +808,10 @@ export default function AdminPage() {
             {rlRangeError && <span className="text-red-400 text-sm">{rlRangeError}</span>}
           </div>
         </section>
+        )} {/* end !isTeacher Reading Level Range */}
 
-        {/* ── Global Safety Defaults ───────────────────────────────────────── */}
+        {/* ── Global Safety Defaults — admin only ─────────────────────────── */}
+        {!isTeacher && (
         <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-5">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <span>🛡️</span> Global Safety Defaults
@@ -788,6 +875,7 @@ export default function AdminPage() {
             {globalSafetySaved && <span className="text-green-400 text-sm">✓ Saved!</span>}
           </div>
         </section>
+        )} {/* end !isTeacher Global Safety */}
 
         {/* ── Classrooms ───────────────────────────────────────────────────── */}
         <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-5">
@@ -795,12 +883,13 @@ export default function AdminPage() {
             <span>🏫</span> Classrooms
           </h2>
           <p className="text-sm text-gray-400">
-            Group students into classrooms and apply shared safety settings. Per-student settings
-            always take precedence over classroom settings; classroom settings take precedence over
-            global defaults.
+            {isTeacher
+              ? 'Configure safety settings and members for your assigned classrooms.'
+              : 'Group students into classrooms and apply shared safety settings. Per-student settings always take precedence over classroom settings; classroom settings take precedence over global defaults.'}
           </p>
 
-          {/* Create classroom */}
+          {/* Create classroom — admin only */}
+          {!isTeacher && (
           <div className="flex gap-3">
             <input
               type="text"
@@ -818,6 +907,7 @@ export default function AdminPage() {
               Add Classroom
             </button>
           </div>
+          )}
 
           {Object.keys(classrooms).length === 0 ? (
             <p className="text-gray-500 text-sm">No classrooms yet.</p>
@@ -833,6 +923,7 @@ export default function AdminPage() {
                   globalMax={effectiveGlobalMax}
                   onChange={(patch) => updateClassroom(id, patch)}
                   onDelete={() => handleDeleteClassroom(id)}
+                  canDelete={!isTeacher}
                 />
               ))}
             </div>
@@ -950,7 +1041,8 @@ export default function AdminPage() {
           )}
         </section>
 
-        {/* Reading Recordings */}
+        {/* Reading Recordings — admin only */}
+        {!isTeacher && (
         <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -1005,8 +1097,10 @@ export default function AdminPage() {
             </div>
           )}
         </section>
+        )} {/* end !isTeacher Recordings */}
 
-        {/* All stories */}
+        {/* All stories — admin only */}
+        {!isTeacher && (
         <section>
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <span>📚</span> All Generated Stories ({stories.length})
@@ -1030,6 +1124,125 @@ export default function AdminPage() {
             </div>
           )}
         </section>
+        )} {/* end !isTeacher All Stories */}
+
+        {/* ── Teacher Management — admin only ─────────────────────────────── */}
+        {!isTeacher && (
+        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-6">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <span>👩‍🏫</span> Teacher Management
+          </h2>
+          <p className="text-sm text-gray-400">
+            Create teacher accounts and assign them to classrooms. Teachers can configure their
+            classroom settings, view and adjust per-student settings, and see analytics — but cannot
+            change global settings or manage other classrooms.
+          </p>
+
+          {/* Existing teachers */}
+          {teachers.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-300 mb-2">Teachers ({teachers.length})</h3>
+              <ul className="space-y-3">
+                {teachers.map((t) => (
+                  <li key={t.username} className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium flex items-center gap-2">
+                        👩‍🏫 {t.username}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteTeacher(t.username)}
+                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/30 px-3 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Managed classrooms</p>
+                      {Object.keys(classrooms).length === 0 ? (
+                        <p className="text-xs text-gray-500">No classrooms created yet.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(classrooms).map(([id, cfg]) => (
+                            <label key={id} className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={t.managedClassroomIds.includes(id)}
+                                onChange={() => {
+                                  const next = t.managedClassroomIds.includes(id)
+                                    ? t.managedClassroomIds.filter((c) => c !== id)
+                                    : [...t.managedClassroomIds, id];
+                                  handleUpdateTeacherClassrooms(t.username, next);
+                                }}
+                                className="w-3.5 h-3.5 rounded accent-indigo-400"
+                              />
+                              <span>{cfg.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Add teacher */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-300 mb-2">Add a teacher</h3>
+            <form onSubmit={handleAddTeacher} className="space-y-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="text"
+                  value={newTeacherUsername}
+                  onChange={(e) => setNewTeacherUsername(e.target.value)}
+                  placeholder="Username"
+                  className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                />
+                <input
+                  type="password"
+                  value={newTeacherPassword}
+                  onChange={(e) => setNewTeacherPassword(e.target.value)}
+                  placeholder="Password"
+                  className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                />
+              </div>
+              {Object.keys(classrooms).length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Assign to classrooms (optional, can be changed later)</p>
+                  <div className="flex flex-wrap gap-3">
+                    {Object.entries(classrooms).map(([id, cfg]) => (
+                      <label key={id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={newTeacherClassroomIds.includes(id)}
+                          onChange={() =>
+                            setNewTeacherClassroomIds((prev) =>
+                              prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
+                            )
+                          }
+                          className="w-4 h-4 rounded accent-indigo-400"
+                        />
+                        {cfg.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <button
+                type="submit"
+                className="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded-xl transition-colors whitespace-nowrap"
+              >
+                Add Teacher
+              </button>
+            </form>
+          </div>
+
+          {teacherError && <p className="text-red-400 text-sm">{teacherError}</p>}
+          {teacherSuccess && <p className="text-green-400 text-sm">✓ {teacherSuccess}</p>}
+        </section>
+        )} {/* end !isTeacher Teacher Management */}
+
       </main>
     </div>
   );
@@ -1270,9 +1483,10 @@ interface ClassroomRowProps {
   globalMax: number;
   onChange: (patch: Partial<ClassroomConfig>) => void;
   onDelete: () => void;
+  canDelete?: boolean;
 }
 
-function ClassroomRow({ config, allStudents, globalMin, globalMax, onChange, onDelete }: ClassroomRowProps) {
+function ClassroomRow({ config, allStudents, globalMin, globalMax, onChange, onDelete, canDelete = true }: ClassroomRowProps) {
   const [expanded, setExpanded] = useState(false);
   const effectiveMin = Math.max(globalMin, config.maturityLevelRange?.min ?? globalMin);
   const effectiveMax = Math.min(globalMax, config.maturityLevelRange?.max ?? globalMax);
@@ -1308,6 +1522,7 @@ function ClassroomRow({ config, allStudents, globalMin, globalMax, onChange, onD
           )}
         </span>
         <div className="flex items-center gap-2">
+          {canDelete && (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
@@ -1315,6 +1530,7 @@ function ClassroomRow({ config, allStudents, globalMin, globalMax, onChange, onD
           >
             Delete
           </button>
+          )}
           <span className="text-gray-400 text-sm">{expanded ? '▲' : '▼'}</span>
         </div>
       </button>

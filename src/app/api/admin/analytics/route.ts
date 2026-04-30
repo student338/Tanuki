@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getStoredUsers, getStories } from '@/lib/storage';
+import { getStoredUsers, getStories, getManagedClassroomIds, getConfig } from '@/lib/storage';
 
 export interface StudentAnalytics {
   username: string;
@@ -14,11 +14,23 @@ export interface StudentAnalytics {
 
 export async function GET() {
   const user = await getCurrentUser();
-  if (!user || user.role !== 'admin') {
+  if (!user || (user.role !== 'admin' && user.role !== 'teacher')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const storedUsers = getStoredUsers().filter((u) => u.role === 'student');
+  let storedUsers = getStoredUsers().filter((u) => u.role === 'student');
+
+  // Teachers see only students in their managed classrooms.
+  if (user.role === 'teacher') {
+    const classroomIds = getManagedClassroomIds(user.username);
+    const config = getConfig();
+    const memberSet = new Set<string>();
+    for (const id of classroomIds) {
+      for (const m of config.classrooms?.[id]?.members ?? []) memberSet.add(m);
+    }
+    storedUsers = storedUsers.filter((s) => memberSet.has(s.username));
+  }
+
   const stories = getStories();
 
   const now = new Date();
@@ -33,10 +45,12 @@ export async function GET() {
   }
 
   // Collect all known usernames (file-based students + anyone who has stories)
+  // For teachers, limit to their classroom members only.
+  const allowedUsernames = new Set(storedUsers.map((u) => u.username));
   const allUsernames = Array.from(
     new Set([
       ...storedUsers.map((u) => u.username),
-      ...Object.keys(storyMap),
+      ...(user.role === 'admin' ? Object.keys(storyMap) : Object.keys(storyMap).filter((u) => allowedUsernames.has(u))),
     ]),
   );
 

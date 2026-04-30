@@ -1,19 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getStoredUsers, addStoredUser, importStudentsFromCsv } from '@/lib/storage';
+import {
+  getStoredUsers,
+  addStoredUser,
+  importStudentsFromCsv,
+  getManagedClassroomIds,
+  getConfig,
+} from '@/lib/storage';
 
 export async function GET() {
   const user = await getCurrentUser();
-  if (!user || user.role !== 'admin') {
+  if (!user || (user.role !== 'admin' && user.role !== 'teacher')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-  // Return students (omit passwords)
-  const students = getStoredUsers()
-    .filter((u) => u.role === 'student')
-    .map(({ username, role, readingLevel, onboardingCompleted, preferences, contentMaturityLevel, blockedTopics }) => ({
+
+  let allStudents = getStoredUsers().filter((u) => u.role === 'student');
+
+  // Teachers see only the students who belong to their managed classrooms.
+  if (user.role === 'teacher') {
+    const classroomIds = getManagedClassroomIds(user.username);
+    const config = getConfig();
+    const memberSet = new Set<string>();
+    for (const id of classroomIds) {
+      for (const m of config.classrooms?.[id]?.members ?? []) memberSet.add(m);
+    }
+    allStudents = allStudents.filter((s) => memberSet.has(s.username));
+  }
+
+  return NextResponse.json(
+    allStudents.map(({ username, role, readingLevel, onboardingCompleted, preferences, contentMaturityLevel, blockedTopics }) => ({
       username, role, readingLevel, onboardingCompleted, preferences, contentMaturityLevel, blockedTopics,
-    }));
-  return NextResponse.json(students);
+    })),
+  );
 }
 
 export async function POST(req: NextRequest) {
