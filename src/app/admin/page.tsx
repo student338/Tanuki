@@ -445,6 +445,8 @@ export default function AdminPage() {
 
   async function handleDeleteTeacher(username: string) {
     if (!confirm(`Delete teacher "${username}"?`)) return;
+    // Teachers are stored as regular users with role='teacher'; the shared
+    // DELETE endpoint works for any user type.
     await fetch(`/api/admin/students/${encodeURIComponent(username)}`, { method: 'DELETE' });
     const refreshed = await fetch('/api/admin/teachers');
     if (refreshed.ok) setTeachers(await refreshed.json());

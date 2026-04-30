@@ -32,7 +32,16 @@ export async function GET() {
   return NextResponse.json(config);
 }
 
-/** Validate and coerce a single raw classroom object.  Returns null if invalid. */
+/**
+ * Validates and coerces a raw JSON value into a ClassroomConfig.
+ *
+ * Accepts an object with at minimum a non-empty `name` string field.
+ * Optional fields that pass validation are included; those that fail
+ * validation are silently omitted so that partial saves don't overwrite
+ * valid existing values with out-of-range data.
+ *
+ * @returns A valid ClassroomConfig, or null if the input is not a valid classroom.
+ */
 function parseClassroom(rawCfg: unknown): ClassroomConfig | null {
   if (!rawCfg || typeof rawCfg !== 'object') return null;
   const cfg = rawCfg as Record<string, unknown>;
