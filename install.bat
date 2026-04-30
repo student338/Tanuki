@@ -213,11 +213,31 @@ set /p LLAMA_INST="Enter number [1]: "
 if "%LLAMA_INST%"=="" set LLAMA_INST=1
 
 if "%LLAMA_INST%"=="1" (
-    echo   For GPU acceleration, set CMAKE_ARGS before installing:
-    echo     NVIDIA:  set CMAKE_ARGS=-DGGML_CUDA=on
-    echo     AMD:     set CMAKE_ARGS=-DGGML_HIPBLAS=on
     echo.
-    %PY_CMD% -m pip install --prefer-binary "llama-cpp-python[server]"
+    echo Hardware target:
+    echo   1) CPU only       ^(pre-built wheel, no compiler needed^)
+    echo   2) NVIDIA GPU     ^(requires MSVC Build Tools + CUDA Toolkit^)
+    echo   3) AMD GPU        ^(requires MSVC Build Tools + ROCm^)
+    echo.
+    set /p LLAMA_HW="Enter number [1]: "
+    if "!LLAMA_HW!"=="" set LLAMA_HW=1
+
+    if "!LLAMA_HW!"=="1" (
+        echo   Installing CPU-only pre-built wheel...
+        %PY_CMD% -m pip install --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu "llama-cpp-python[server]"
+    )
+    if "!LLAMA_HW!"=="2" (
+        echo   Note: MSVC Build Tools and CUDA Toolkit must be installed before proceeding.
+        echo   Set CMAKE_ARGS and install:
+        set CMAKE_ARGS=-DGGML_CUDA=on
+        %PY_CMD% -m pip install --prefer-binary "llama-cpp-python[server]"
+    )
+    if "!LLAMA_HW!"=="3" (
+        echo   Note: MSVC Build Tools and ROCm must be installed before proceeding.
+        echo   Set CMAKE_ARGS and install:
+        set CMAKE_ARGS=-DGGML_HIPBLAS=on
+        %PY_CMD% -m pip install --prefer-binary "llama-cpp-python[server]"
+    )
     if errorlevel 1 (
         echo   X  llama-cpp-python installation failed.
         pause

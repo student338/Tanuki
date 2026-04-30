@@ -41,16 +41,6 @@ function paginateStory(text: string, wordsPerPage = 450): string[] {
   return pages.length > 0 ? pages : [text];
 }
 
-/** Strips common AI preamble phrases from the start of a chapter (client-side copy). */
-function stripChapterPreamble(text: string): string {
-  return text
-    .replace(
-      /^(?:(?:Of course[!,]?\s*|Sure[!,]?\s*|Certainly[!,]?\s*|Absolutely[!,]?\s*)?(?:Here(?:'s| is)\b[^\n]*\n+))+/i,
-      '',
-    )
-    .replace(/^Chapter \d+[:\s]*\n+/i, '')
-    .trimStart();
-}
 
 const PLAN_LABELS: { key: keyof StoryPlan; label: string }[] = [
   { key: 'exposition',    label: '🌅 Exposition' },
@@ -106,8 +96,15 @@ export default function ReaderPage() {
   const loadStory = useCallback(async () => {
     setLoading(true);
     setError('');
-    const res = await fetch(`/api/stories/${storyId}`);
-    if (res.status === 401) { router.push('/login'); return; }
+    let res = await fetch(`/api/stories/${storyId}`);
+    if (res.status === 401) {
+      // On iOS/iPadOS the httpOnly session cookie written by the login fetch
+      // may not be flushed to the cookie jar before the first in-page requests
+      // fire after window.location.replace. Retry once after a brief delay.
+      await new Promise((r) => setTimeout(r, 500));
+      res = await fetch(`/api/stories/${storyId}`);
+      if (res.status === 401) { router.push('/login'); return; }
+    }
     if (!res.ok) { setError('Story not found.'); setLoading(false); return; }
     const data: Story = await res.json();
     setStory(data);
@@ -210,7 +207,7 @@ export default function ReaderPage() {
         } else {
           accumulated += chunk;
         }
-        setStreamingText(stripChapterPreamble(accumulated.replace(/\n\u0000DONE$/, '')));
+        setStreamingText(accumulated.replace(/\n\u0000DONE$/, ''));
       }
 
       // Reload story to get updated chapters from server
