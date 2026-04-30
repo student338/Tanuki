@@ -4,6 +4,7 @@ import {
   getConfig,
   getStoredUsers,
   updateStoredUser,
+  isTeacherOfStudent,
   StudentPreferences,
 } from '@/lib/storage';
 import { READING_LEVEL_VALUES, ReadingLevel } from '@/lib/reading-levels';
@@ -14,11 +15,16 @@ export async function GET(
   { params }: { params: Promise<{ username: string }> },
 ) {
   const user = await getCurrentUser();
-  if (!user || user.role !== 'admin') {
+  if (!user || (user.role !== 'admin' && user.role !== 'teacher')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const { username } = await params;
+
+  if (user.role === 'teacher' && !isTeacherOfStudent(user.username, username)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const storedUser = getStoredUsers().find((u) => u.username === username);
   if (!storedUser) {
     return NextResponse.json({ error: 'Student not found' }, { status: 404 });
@@ -39,11 +45,16 @@ export async function POST(
   { params }: { params: Promise<{ username: string }> },
 ) {
   const user = await getCurrentUser();
-  if (!user || user.role !== 'admin') {
+  if (!user || (user.role !== 'admin' && user.role !== 'teacher')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const { username } = await params;
+
+  if (user.role === 'teacher' && !isTeacherOfStudent(user.username, username)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const storedUser = getStoredUsers().find((u) => u.username === username);
   if (!storedUser) {
     return NextResponse.json({ error: 'Student not found' }, { status: 404 });
@@ -55,6 +66,8 @@ export async function POST(
     preferences?: StudentPreferences;
     contentMaturityLevel?: number;
     blockedTopics?: string[];
+    /** Admin-only: update a teacher's managed classroom IDs. */
+    managedClassroomIds?: string[];
   };
 
   const patch: Parameters<typeof updateStoredUser>[1] = {};
@@ -104,6 +117,13 @@ export async function POST(
 
   if (Array.isArray(body.blockedTopics)) {
     patch.blockedTopics = body.blockedTopics.filter((t): t is string => typeof t === 'string');
+  }
+
+  // Only admins may change managed classroom assignments.
+  if (user.role === 'admin' && Array.isArray(body.managedClassroomIds)) {
+    patch.managedClassroomIds = body.managedClassroomIds.filter(
+      (id): id is string => typeof id === 'string',
+    );
   }
 
   updateStoredUser(username, patch);

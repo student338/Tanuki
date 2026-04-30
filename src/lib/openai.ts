@@ -136,6 +136,10 @@ export async function generateStory(options: GenerateOptions): Promise<string> {
 
   const promptParts: string[] = [basePrompt];
 
+  if (!infoMode) {
+    promptParts.push('Write only the narrative text of the story — do not begin with phrases like "Here is your story:", "Sure!", "Certainly!", or any other preamble. Start directly with the story content.');
+  }
+
   const level = contentMaturityLevel !== undefined && contentMaturityLevel >= 1 && contentMaturityLevel <= 6
     ? contentMaturityLevel
     : MATURITY_LEVEL_DEFAULT;
@@ -379,17 +383,3 @@ export async function* generateChapterStream(
 }
 
 // ── Post-processing ───────────────────────────────────────────────────────────
-
-/**
- * Strips common AI preamble phrases from the start of a generated chapter,
- * e.g. "Here's the revised version of Chapter 3:\n\n".
- */
-export function stripChapterPreamble(text: string): string {
-  return text
-    .replace(
-      /^(?:(?:Of course[!,]?\s*|Sure[!,]?\s*|Certainly[!,]?\s*|Absolutely[!,]?\s*)?(?:Here(?:'s| is)\b[^\n]*\n+))+/i,
-      '',
-    )
-    .replace(/^Chapter \d+[:\s]*\n+/i, '')
-    .trimStart();
-}

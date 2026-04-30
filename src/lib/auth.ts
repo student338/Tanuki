@@ -4,7 +4,7 @@ import { getStoredUsers } from './storage';
 
 export interface User {
   username: string;
-  role: 'admin' | 'student';
+  role: 'admin' | 'student' | 'teacher';
 }
 
 const COOKIE_NAME = 'tanuki_session';

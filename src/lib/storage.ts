@@ -303,7 +303,7 @@ export interface StoredUser {
    * data/users.json via filesystem permissions.
    */
   password: string;
-  role: 'student' | 'admin';
+  role: 'student' | 'admin' | 'teacher';
   readingLevel?: ReadingLevel;
   /** True once the student has completed the first-login onboarding flow. */
   onboardingCompleted?: boolean;
@@ -320,6 +320,11 @@ export interface StoredUser {
    * Merged with classroom and global blocked-topic lists.
    */
   blockedTopics?: string[];
+  /**
+   * Classroom IDs this user is permitted to manage.
+   * Only relevant when role === 'teacher'.
+   */
+  managedClassroomIds?: string[];
 }
 
 export function getStoredUsers(): StoredUser[] {
@@ -364,6 +369,23 @@ export function updateStoredUser(username: string, patch: Partial<Omit<StoredUse
   users[idx] = { ...users[idx], ...patch };
   saveStoredUsers(users);
   return users[idx];
+}
+
+/** Returns the list of classroom IDs that a teacher manages. */
+export function getManagedClassroomIds(username: string): string[] {
+  const user = getStoredUsers().find((u) => u.username === username);
+  return user?.managedClassroomIds ?? [];
+}
+
+/**
+ * Returns true when the given teacher manages at least one classroom that
+ * contains the specified student.
+ */
+export function isTeacherOfStudent(teacherUsername: string, studentUsername: string): boolean {
+  const classroomIds = getManagedClassroomIds(teacherUsername);
+  if (classroomIds.length === 0) return false;
+  const config = getConfig();
+  return classroomIds.some((id) => config.classrooms?.[id]?.members.includes(studentUsername) ?? false);
 }
 
 /**

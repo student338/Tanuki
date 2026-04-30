@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getConfig, getEffectiveMaturitySettings, getStories, appendChapter, markStoryComplete } from '@/lib/storage';
-import { generateChapterStream, stripChapterPreamble } from '@/lib/openai';
+import { generateChapterStream } from '@/lib/openai';
 
 export async function POST(
   req: NextRequest,
@@ -65,8 +65,8 @@ export async function POST(
           controller.enqueue(encoder.encode(delta));
         }
 
-        // Persist the completed chapter (preamble stripped)
-        appendChapter(id, stripChapterPreamble(accumulatedText));
+        // Persist the completed chapter
+        appendChapter(id, accumulatedText);
         if (chapterIndex + 1 >= totalChapters) {
           markStoryComplete(id);
           // Signal completion with a sentinel line

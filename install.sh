@@ -241,11 +241,27 @@ install_llamacpp() {
   ask inst_choice "Enter number" "1"
 
   if [[ "$inst_choice" == "1" ]]; then
-    warn "For GPU acceleration set CMAKE_ARGS before installing."
-    warn "  NVIDIA:  export CMAKE_ARGS=\"-DGGML_CUDA=on\""
-    warn "  Metal:   export CMAKE_ARGS=\"-DGGML_METAL=on\""
     echo
-    $PIP_CMD install 'llama-cpp-python[server]'
+    echo -e "${BOLD}Hardware target:${RESET}"
+    echo -e "  ${CYAN}1${RESET}) CPU only    (pre-built wheel, no compiler needed)"
+    echo -e "  ${CYAN}2${RESET}) NVIDIA GPU  (requires gcc/clang + CUDA Toolkit)"
+    echo -e "  ${CYAN}3${RESET}) Apple Metal (requires Xcode command-line tools)"
+    local hw_choice
+    ask hw_choice "Enter number" "1"
+
+    if [[ "$hw_choice" == "1" ]]; then
+      log "Installing CPU-only pre-built wheel..."
+      $PIP_CMD install --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu 'llama-cpp-python[server]'
+    elif [[ "$hw_choice" == "2" ]]; then
+      warn "CUDA Toolkit must be installed. Setting CMAKE_ARGS for NVIDIA GPU..."
+      CMAKE_ARGS="-DGGML_CUDA=on" $PIP_CMD install 'llama-cpp-python[server]'
+    elif [[ "$hw_choice" == "3" ]]; then
+      warn "Xcode command-line tools must be installed. Setting CMAKE_ARGS for Metal..."
+      CMAKE_ARGS="-DGGML_METAL=on" $PIP_CMD install 'llama-cpp-python[server]'
+    else
+      warn "Unknown choice; falling back to default install..."
+      $PIP_CMD install 'llama-cpp-python[server]'
+    fi
     ok "llama-cpp-python installed"
   else
     ok "Skipping install — using existing llama-cpp-python"
