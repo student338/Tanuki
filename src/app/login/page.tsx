@@ -46,12 +46,12 @@ export default function LoginPage() {
       navigated = true;
       // Use a full page navigation so that Safari on iOS/iPadOS reliably
       // includes the newly-set session cookie in all subsequent requests.
-      // An 80 ms pause lets WebKit commit the Set-Cookie header from the login
+      // A 200 ms pause lets WebKit commit the Set-Cookie header from the login
       // fetch response to the cookie jar before the new page's requests fire.
       // Without this delay, the very first API call on the destination page
       // can arrive before the cookie is flushed, triggering a 401 redirect
       // straight back to the login screen on iOS Safari 16+.
-      await new Promise((r) => setTimeout(r, 80));
+      await new Promise((r) => setTimeout(r, 200));
       if (data.user.role === 'admin') window.location.replace('/admin');
       else window.location.replace('/student');
     } catch {
