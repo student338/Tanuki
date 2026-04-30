@@ -46,10 +46,12 @@ export default function LoginPage() {
       navigated = true;
       // Use a full page navigation so that Safari on iOS/iPadOS reliably
       // includes the newly-set session cookie in all subsequent requests.
-      // Client-side navigation (router.replace) keeps the same fetch context,
-      // and Safari does not always flush Set-Cookie headers to the cookie jar
-      // in time for the next in-page fetch — causing the API calls on the
-      // destination page to return 401 and redirect straight back to login.
+      // An 80 ms pause lets WebKit commit the Set-Cookie header from the login
+      // fetch response to the cookie jar before the new page's requests fire.
+      // Without this delay, the very first API call on the destination page
+      // can arrive before the cookie is flushed, triggering a 401 redirect
+      // straight back to the login screen on iOS Safari 16+.
+      await new Promise((r) => setTimeout(r, 80));
       if (data.user.role === 'admin') window.location.replace('/admin');
       else window.location.replace('/student');
     } catch {
@@ -91,6 +93,8 @@ export default function LoginPage() {
               <label className="block text-purple-200 text-sm font-medium mb-1">Username</label>
               <input
                 type="text"
+                name="username"
+                autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-400"
@@ -102,6 +106,8 @@ export default function LoginPage() {
               <label className="block text-purple-200 text-sm font-medium mb-1">Password</label>
               <input
                 type="password"
+                name="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-400"

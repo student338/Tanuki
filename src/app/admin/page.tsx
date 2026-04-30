@@ -20,7 +20,11 @@ const LOCKABLE_FIELDS: { key: LockableField; label: string }[] = [
   { key: 'genre', label: 'Genre' },
 ];
 
-const GENRES = ['Fantasy', 'Adventure', 'Mystery', 'Sci-Fi', 'Romance', 'Horror', 'Comedy', 'Historical', 'Other'];
+const GENRES = [
+  'Fantasy', 'Adventure', 'Mystery', 'Sci-Fi', 'Romance', 'Horror', 'Comedy', 'Historical',
+  'Thriller', 'Non-Fiction', 'Fairy Tale', 'Mythology', 'Sports', 'Animals & Nature',
+  'Science', 'Drama', 'Superhero', 'Poetry', 'Fable', 'Other',
+];
 
 interface UserConfig {
   lockedFields?: LockableField[];
@@ -1033,7 +1037,17 @@ export default function AdminPage() {
 
 // ── Reusable sub-components ─────────────────────────────────────────────────
 
-/** Renders a range input + tick labels for a maturity level slider. */
+/** Colour for each maturity level — used for the slider track and labels. */
+const MATURITY_LEVEL_COLORS: Record<number, string> = {
+  1: '#4ade80', // green
+  2: '#34d399', // emerald
+  3: '#60a5fa', // blue
+  4: '#818cf8', // indigo
+  5: '#c084fc', // purple
+  6: '#f87171', // red
+};
+
+/** Renders a practical, colour-coded maturity level slider. */
 function MaturitySlider({
   value,
   min,
@@ -1047,41 +1061,95 @@ function MaturitySlider({
 }) {
   const info = MATURITY_LEVEL_INFO[value] ?? MATURITY_LEVEL_INFO[MATURITY_LEVEL_DEFAULT];
   const ticks = Array.from({ length: max - min + 1 }, (_, i) => min + i);
+  const color = MATURITY_LEVEL_COLORS[value] ?? '#818cf8';
+  const thumbPct = max > min ? ((value - min) / (max - min)) * 100 : 0;
+
+  // Gradient from the min-level colour to the max-level colour
+  const gradientStops = ticks
+    .map((n) => `${MATURITY_LEVEL_COLORS[n] ?? '#818cf8'} ${((n - min) / Math.max(max - min, 1)) * 100}%`)
+    .join(', ');
+
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-sm font-medium text-purple-300">{info.emoji} {info.label}</span>
+    <div className="space-y-3">
+      {/* Level badge */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span
+          className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full transition-colors duration-200"
+          style={{ background: `${color}22`, color, border: `1px solid ${color}55` }}
+        >
+          {info.emoji} {info.label}
+        </span>
         {value === MATURITY_LEVEL_MAX && (
           <span className="text-xs bg-red-500/20 text-red-300 border border-red-400/30 px-2 py-0.5 rounded-full">
             No restrictions
           </span>
         )}
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={1}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-purple-500 cursor-pointer"
-      />
-      <div className={`flex mt-1 ${ticks.length > 1 ? 'justify-between' : 'justify-start'}`}>
-        {ticks.map((n) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => onChange(n)}
-            className={`text-xs text-center transition-colors ${value === n ? 'text-purple-300 font-semibold' : 'text-gray-500 hover:text-gray-300'}`}
-            style={{ width: `${100 / ticks.length}%` }}
-          >
-            {MATURITY_LEVEL_INFO[n]?.emoji}
-            <br />
-            <span className="hidden sm:inline">{MATURITY_LEVEL_INFO[n]?.label}</span>
-          </button>
-        ))}
+
+      {/* Custom coloured track with native range for accessibility */}
+      <div className="relative h-10 flex items-center">
+        {/* Track background gradient */}
+        <div
+          className="absolute inset-x-0 h-3 rounded-full pointer-events-none"
+          style={{ background: `linear-gradient(to right, ${gradientStops})` }}
+        />
+        {/* Dimmed overlay for the un-filled portion */}
+        <div
+          className="absolute right-0 h-3 rounded-r-full bg-black/50 pointer-events-none transition-all duration-150"
+          style={{ left: `${thumbPct}%` }}
+        />
+        {/* Native range — transparent so the custom track shows through */}
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={1}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="absolute inset-x-0 w-full h-3 opacity-0 cursor-pointer z-10"
+          style={{ height: '40px', top: 0 }}
+        />
+        {/* Custom thumb */}
+        <div
+          className="absolute w-6 h-6 rounded-full bg-white shadow-lg pointer-events-none -translate-x-1/2 transition-all duration-150"
+          style={{
+            left: `${thumbPct}%`,
+            boxShadow: `0 0 0 3px ${color}, 0 4px 12px ${color}80`,
+          }}
+        />
       </div>
-      <p className="mt-1 text-xs text-gray-500">{info.description}</p>
+
+      {/* Tick labels — always visible */}
+      <div className={`flex mt-1 ${ticks.length > 1 ? 'justify-between' : 'justify-start'}`}>
+        {ticks.map((n) => {
+          const isSelected = value === n;
+          const c = MATURITY_LEVEL_COLORS[n] ?? '#818cf8';
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onChange(n)}
+              className="flex flex-col items-center gap-0.5 transition-all duration-150 focus:outline-none"
+              style={{ flex: '1 1 0', minWidth: 0 }}
+            >
+              <span
+                className="text-base leading-none transition-all duration-150"
+                style={isSelected ? { filter: `drop-shadow(0 0 4px ${c})`, transform: 'scale(1.25)' } : { opacity: 0.5 }}
+              >
+                {MATURITY_LEVEL_INFO[n]?.emoji}
+              </span>
+              <span
+                className="text-[10px] leading-tight text-center transition-colors duration-150 mt-0.5"
+                style={isSelected ? { color: c, fontWeight: 700 } : { color: 'rgba(255,255,255,0.35)' }}
+              >
+                {MATURITY_LEVEL_INFO[n]?.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="text-xs text-gray-400">{info.description}</p>
     </div>
   );
 }

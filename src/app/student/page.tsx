@@ -10,7 +10,11 @@ import { ReadingLevel } from '@/lib/reading-levels';
 import { MATURITY_LEVEL_INFO, MATURITY_LEVEL_DEFAULT, MATURITY_LEVEL_MAX } from '@/lib/safety';
 import ThemeSelector, { Theme, VALID_THEMES } from '@/components/ThemeSelector';
 
-const GENRES = ['Fantasy', 'Adventure', 'Mystery', 'Sci-Fi', 'Romance', 'Horror', 'Comedy', 'Historical', 'Other'];
+const GENRES = [
+  'Fantasy', 'Adventure', 'Mystery', 'Sci-Fi', 'Romance', 'Horror', 'Comedy', 'Historical',
+  'Thriller', 'Non-Fiction', 'Fairy Tale', 'Mythology', 'Sports', 'Animals & Nature',
+  'Science', 'Drama', 'Superhero', 'Poetry', 'Fable', 'Other',
+];
 
 interface StoryOptions {
   title: string;

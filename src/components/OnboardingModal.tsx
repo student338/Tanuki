@@ -1,9 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { ReadingLevel } from '@/lib/reading-levels';
 
-const GENRES = ['Fantasy', 'Adventure', 'Mystery', 'Sci-Fi', 'Romance', 'Horror', 'Comedy', 'Historical', 'Other'];
+const GENRES = [
+  'Fantasy', 'Adventure', 'Mystery', 'Sci-Fi', 'Romance', 'Horror', 'Comedy', 'Historical',
+  'Thriller', 'Non-Fiction', 'Fairy Tale', 'Mythology', 'Sports', 'Animals & Nature',
+  'Science', 'Drama', 'Superhero', 'Poetry', 'Fable', 'Other',
+];
 
 const READING_LEVEL_ICONS: Record<ReadingLevel, string> = {
   'Pre-K': '🌱',
@@ -16,20 +20,178 @@ const READING_LEVEL_ICONS: Record<ReadingLevel, string> = {
   'Doctorate': '🎖️',
 };
 
-/** Per-level color tokens — used for both selected and unselected states. */
+/** Per-level color tokens — used for the State of Mind slider. */
 const READING_LEVEL_COLORS: Record<
   ReadingLevel,
-  { selectedGradient: string; selectedShadow: string; unselectedBg: string; unselectedBorder: string }
+  { hex: string; glow: string; label: string }
 > = {
-  'Pre-K':        { selectedGradient: 'from-emerald-400 to-green-500',   selectedShadow: 'shadow-emerald-500/50', unselectedBg: 'bg-emerald-500/10',  unselectedBorder: 'border-emerald-400/30' },
-  'Kindergarten': { selectedGradient: 'from-cyan-400 to-teal-500',       selectedShadow: 'shadow-cyan-500/50',    unselectedBg: 'bg-cyan-500/10',     unselectedBorder: 'border-cyan-400/30'    },
-  'Elementary':   { selectedGradient: 'from-sky-400 to-blue-500',        selectedShadow: 'shadow-sky-500/50',     unselectedBg: 'bg-sky-500/10',      unselectedBorder: 'border-sky-400/30'     },
-  'Middle School':{ selectedGradient: 'from-blue-400 to-indigo-500',     selectedShadow: 'shadow-blue-500/50',    unselectedBg: 'bg-blue-500/10',     unselectedBorder: 'border-blue-400/30'    },
-  'High School':  { selectedGradient: 'from-indigo-400 to-violet-500',   selectedShadow: 'shadow-indigo-500/50',  unselectedBg: 'bg-indigo-500/10',   unselectedBorder: 'border-indigo-400/30'  },
-  'College':      { selectedGradient: 'from-violet-400 to-purple-500',   selectedShadow: 'shadow-violet-500/50',  unselectedBg: 'bg-violet-500/10',   unselectedBorder: 'border-violet-400/30'  },
-  'Graduate':     { selectedGradient: 'from-fuchsia-400 to-rose-500',    selectedShadow: 'shadow-fuchsia-500/50', unselectedBg: 'bg-fuchsia-500/10',  unselectedBorder: 'border-fuchsia-400/30' },
-  'Doctorate':    { selectedGradient: 'from-amber-400 to-orange-500',    selectedShadow: 'shadow-amber-500/50',   unselectedBg: 'bg-amber-500/10',    unselectedBorder: 'border-amber-400/30'   },
+  'Pre-K':        { hex: '#10b981', glow: 'rgba(16,185,129,0.55)',  label: 'Gentle stories for very young readers'     },
+  'Kindergarten': { hex: '#06b6d4', glow: 'rgba(6,182,212,0.55)',   label: 'Simple words and short sentences'          },
+  'Elementary':   { hex: '#3b82f6', glow: 'rgba(59,130,246,0.55)',  label: 'Basic stories for early readers'           },
+  'Middle School':{ hex: '#6366f1', glow: 'rgba(99,102,241,0.55)',  label: 'Moderate complexity for preteens'          },
+  'High School':  { hex: '#8b5cf6', glow: 'rgba(139,92,246,0.55)',  label: 'Richer vocabulary for teenage readers'     },
+  'College':      { hex: '#a855f7', glow: 'rgba(168,85,247,0.55)',  label: 'Advanced prose and complex ideas'          },
+  'Graduate':     { hex: '#ec4899', glow: 'rgba(236,72,153,0.55)',  label: 'Sophisticated academic writing'            },
+  'Doctorate':    { hex: '#f59e0b', glow: 'rgba(245,158,11,0.55)',  label: 'Expert-level depth and nuance'             },
 };
+
+/** Apple State-of-Mind–inspired horizontal segmented slider for reading level. */
+function ReadingLevelSlider({
+  levels,
+  value,
+  onChange,
+}: {
+  levels: ReadingLevel[];
+  value: ReadingLevel | null;
+  onChange: (level: ReadingLevel) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  /** Map a pointer X position on the track to the nearest level index. */
+  const levelFromX = useCallback(
+    (clientX: number): ReadingLevel | null => {
+      const el = trackRef.current;
+      if (!el || levels.length === 0) return null;
+      const { left, width } = el.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (clientX - left) / width));
+      const idx = Math.round(pct * (levels.length - 1));
+      return levels[idx] ?? null;
+    },
+    [levels],
+  );
+
+  function handlePointerDown(e: React.PointerEvent) {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const lvl = levelFromX(e.clientX);
+    if (lvl) onChange(lvl);
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    if (e.buttons === 0) return;
+    const lvl = levelFromX(e.clientX);
+    if (lvl) onChange(lvl);
+  }
+
+  const selectedIndex = value ? levels.indexOf(value) : -1;
+  const thumbPct = levels.length > 1 ? (selectedIndex / (levels.length - 1)) * 100 : 0;
+
+  // Build gradient stops for the track
+  const gradientStops = levels
+    .map((l, i) => `${READING_LEVEL_COLORS[l].hex} ${(i / Math.max(levels.length - 1, 1)) * 100}%`)
+    .join(', ');
+
+  return (
+    <div className="space-y-4 select-none">
+      {/* Prominent selected level display */}
+      <div
+        className="flex items-center justify-center gap-3 py-4 px-5 rounded-2xl transition-all duration-300"
+        style={
+          value
+            ? {
+                background: `${READING_LEVEL_COLORS[value].hex}22`,
+                boxShadow: `0 0 0 1px ${READING_LEVEL_COLORS[value].hex}55, 0 4px 24px -4px ${READING_LEVEL_COLORS[value].glow}`,
+              }
+            : { background: 'rgba(255,255,255,0.05)', border: '1px dashed rgba(255,255,255,0.15)' }
+        }
+      >
+        {value ? (
+          <>
+            <span className="text-4xl leading-none">{READING_LEVEL_ICONS[value]}</span>
+            <div>
+              <div className="text-lg font-bold leading-tight" style={{ color: READING_LEVEL_COLORS[value].hex }}>
+                {value}
+              </div>
+              <div className="text-xs text-white/60 mt-0.5">{READING_LEVEL_COLORS[value].label}</div>
+            </div>
+          </>
+        ) : (
+          <span className="text-sm text-white/40 italic">Slide or tap to pick your reading level</span>
+        )}
+      </div>
+
+      {/* Gradient track + draggable thumb */}
+      <div
+        ref={trackRef}
+        className="relative h-10 flex items-center cursor-pointer touch-none"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        role="slider"
+        aria-valuemin={0}
+        aria-valuemax={levels.length - 1}
+        aria-valuenow={selectedIndex >= 0 ? selectedIndex : 0}
+        aria-valuetext={value ?? undefined}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (selectedIndex > 0) onChange(levels[selectedIndex - 1]);
+            else if (selectedIndex === -1 && levels.length) onChange(levels[0]);
+          } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (selectedIndex < levels.length - 1) onChange(levels[selectedIndex + 1]);
+            else if (selectedIndex === -1 && levels.length) onChange(levels[0]);
+          }
+        }}
+      >
+        {/* Coloured track */}
+        <div
+          className="absolute inset-x-0 h-3 rounded-full"
+          style={{ background: `linear-gradient(to right, ${gradientStops})` }}
+        />
+        {/* Dimmed right portion */}
+        {value && (
+          <div
+            className="absolute right-0 h-3 rounded-r-full bg-black/40 transition-all duration-200"
+            style={{ left: `${thumbPct}%` }}
+          />
+        )}
+        {/* Thumb */}
+        {value && (
+          <div
+            className="absolute w-7 h-7 rounded-full bg-white shadow-xl transition-all duration-200 -translate-x-1/2 pointer-events-none"
+            style={{
+              left: `${thumbPct}%`,
+              boxShadow: `0 0 0 3px ${READING_LEVEL_COLORS[value].hex}, 0 4px 12px ${READING_LEVEL_COLORS[value].glow}`,
+            }}
+          />
+        )}
+      </div>
+
+      {/* Emoji tick marks */}
+      <div className="flex justify-between px-0">
+        {levels.map((level) => {
+          const isSelected = value === level;
+          return (
+            <button
+              key={level}
+              type="button"
+              onClick={() => onChange(level)}
+              className="flex flex-col items-center gap-0.5 transition-all duration-200 focus:outline-none"
+              style={{ flex: '1 1 0', minWidth: 0 }}
+            >
+              <span
+                className="text-xl leading-none transition-all duration-200"
+                style={
+                  isSelected
+                    ? { filter: `drop-shadow(0 0 6px ${READING_LEVEL_COLORS[level].glow})`, transform: 'scale(1.35)' }
+                    : { opacity: 0.45 }
+                }
+              >
+                {READING_LEVEL_ICONS[level]}
+              </span>
+              <span
+                className="text-[9px] leading-tight text-center transition-all duration-200 truncate w-full"
+                style={isSelected ? { color: READING_LEVEL_COLORS[level].hex, fontWeight: 700 } : { color: 'rgba(255,255,255,0.35)' }}
+              >
+                {level.split(' ')[0]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 import { themes as THEME_OPTIONS } from './ThemeSelector';
 
@@ -120,31 +282,13 @@ export default function OnboardingModal({
           <div className="px-8 pb-8 space-y-4">
             <h3 className="font-semibold text-lg">📖 Choose your reading level</h3>
             <p className="text-purple-200 text-sm">
-              This helps us tailor stories to the right complexity for you. You can always change it later.
+              Slide or tap to set the right complexity. You can change it any time.
             </p>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              {allowedReadingLevels.map((level) => {
-                const colors = READING_LEVEL_COLORS[level];
-                const isSelected = readingLevel === level;
-                return (
-                  <button
-                    key={level}
-                    type="button"
-                    onClick={() => setReadingLevel(level)}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-2xl border text-sm font-medium transition-all duration-200 ${
-                      isSelected
-                        ? `bg-gradient-to-r ${colors.selectedGradient} border-transparent shadow-lg ${colors.selectedShadow} scale-[1.03]`
-                        : `${colors.unselectedBg} ${colors.unselectedBorder} hover:scale-[1.02] hover:border-white/30 hover:bg-white/15`
-                    }`}
-                  >
-                    <span className={`text-lg leading-none ${isSelected ? 'icon-selected' : ''}`}>
-                      {READING_LEVEL_ICONS[level]}
-                    </span>
-                    <span>{level}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <ReadingLevelSlider
+              levels={allowedReadingLevels}
+              value={readingLevel}
+              onChange={setReadingLevel}
+            />
             <button
               onClick={() => setStep('preferences')}
               disabled={!readingLevel}
