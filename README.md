@@ -2,6 +2,23 @@
 
 An AI-powered story generation web app for students.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><strong>Login</strong><br/><img src="public/screenshots/login.png" alt="Login screen" width="480"/></td>
+    <td align="center"><strong>Story Generation</strong><br/><img src="public/screenshots/student-story-request.png" alt="Student story generation form" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Story Dashboard</strong><br/><img src="public/screenshots/student-with-story.png" alt="Student dashboard with story history" width="480"/></td>
+    <td align="center"><strong>Story Reader</strong><br/><img src="public/screenshots/story-reader.png" alt="Story reader" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Admin — Settings &amp; Students</strong><br/><img src="public/screenshots/admin-settings.png" alt="Admin dashboard settings" width="480"/></td>
+    <td align="center"><strong>Admin — Analytics</strong><br/><img src="public/screenshots/admin-analytics.png" alt="Admin analytics" width="480"/></td>
+  </tr>
+</table>
+
 ## Quick Install (Interactive)
 
 The interactive installers handle Node.js dependencies, AI backend setup (vLLM, llama.cpp, or external API), and `.env.local` generation in one step.
