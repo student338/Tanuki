@@ -79,9 +79,12 @@ export default function StudentPage() {
     if (res.status === 401) {
       // On iOS/iPadOS the httpOnly session cookie written by the login fetch
       // may not be flushed to the cookie jar before the first in-page requests
-      // fire after window.location.replace. Retry once after a brief delay.
-      await new Promise((r) => setTimeout(r, 500));
-      res = await fetch('/api/stories');
+      // fire after window.location.replace. Retry with increasing delays.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await new Promise((r) => setTimeout(r, 300));
+        res = await fetch('/api/stories');
+        if (res.status !== 401) break;
+      }
     }
     if (res.status === 401) { router.push('/login'); return; }
     if (!res.ok) { setError('Failed to load stories. Please refresh the page.'); return; }
