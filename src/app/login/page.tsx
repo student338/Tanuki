@@ -16,8 +16,7 @@ export default function LoginPage() {
     fetch('/api/auth/me')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data?.user?.role === 'admin') window.location.replace('/admin');
-        else if (data?.user?.role === 'teacher') window.location.replace('/admin');
+        if (data?.user?.role === 'admin' || data?.user?.role === 'teacher') window.location.replace('/admin');
         else if (data?.user?.role === 'student') window.location.replace('/student');
       })
       .catch(() => {});
