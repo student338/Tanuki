@@ -15,7 +15,7 @@ const GENRES = [
   'Thriller', 'Fairy Tale', 'Mythology', 'Sports', 'Animals & Nature',
   'Science', 'Drama', 'Superhero', 'Poetry', 'Fable',
   'Dystopian', 'Western', 'Crime', 'Steampunk', 'Pirate', 'Magic Realism',
-  'Slice of Life', 'Graphic Novel', 'Cooking', 'Other',
+  'Slice of Life', 'Graphic Novel', 'Other',
 ];
 
 interface StoryOptions {
