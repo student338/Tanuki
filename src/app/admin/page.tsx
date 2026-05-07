@@ -12,6 +12,7 @@ import {
   MATURITY_LEVEL_MAX,
   MATURITY_LEVEL_DEFAULT,
 } from '@/lib/safety';
+import type { StudentAnalytics, AnalyticsSummary } from '@/app/api/admin/analytics/route';
 
 const LOCKABLE_FIELDS: { key: LockableField; label: string }[] = [
   { key: 'chapterCount', label: 'Chapter count' },
@@ -25,6 +26,8 @@ const GENRES = [
   'Thriller', 'Non-Fiction', 'Fairy Tale', 'Mythology', 'Sports', 'Animals & Nature',
   'Science', 'Drama', 'Superhero', 'Poetry', 'Fable', 'Other',
 ];
+
+type AdminTab = 'overview' | 'students' | 'classrooms' | 'safety' | 'config' | 'content';
 
 interface UserConfig {
   lockedFields?: LockableField[];
@@ -40,20 +43,12 @@ interface StudentInfo {
   blockedTopics?: string[];
 }
 
-interface StudentAnalytics {
-  username: string;
-  readingLevel?: string;
-  onboardingCompleted: boolean;
-  totalStories: number;
-  storiesLast7Days: number;
-  storiesLast30Days: number;
-  lastActiveAt: string | null;
-}
-
 export default function AdminPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<{ username: string; role: string } | null>(null);
   const isTeacher = currentUser?.role === 'teacher';
+  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+
   const [systemPrompt, setSystemPrompt] = useState('');
   const [apiBaseUrl, setApiBaseUrl] = useState('');
   const [model, setModel] = useState('');
@@ -103,6 +98,7 @@ export default function AdminPage() {
 
   // Analytics
   const [analytics, setAnalytics] = useState<StudentAnalytics[]>([]);
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
 
   // Recordings
   interface RecordingInfo {
@@ -131,7 +127,13 @@ export default function AdminPage() {
     const res = await fetch('/api/admin/analytics');
     if (!res.ok) return;
     const data = await res.json();
-    setAnalytics(Array.isArray(data) ? data : []);
+    if (data && typeof data === 'object' && 'students' in data) {
+      setAnalytics(Array.isArray(data.students) ? data.students : []);
+      setSummary(data.summary ?? null);
+    } else if (Array.isArray(data)) {
+      // Backwards-compatible: old API returned plain array
+      setAnalytics(data);
+    }
   }, []);
 
   const loadRecordings = useCallback(async (storyList: Story[]) => {
@@ -145,15 +147,11 @@ export default function AdminPage() {
   }, []);
 
   const load = useCallback(async () => {
-    // Fetch config and current user identity in parallel.
     let [cfgRes, meRes] = await Promise.all([
       fetch('/api/admin/config'),
       fetch('/api/auth/me'),
     ]);
     if (cfgRes.status === 403 || cfgRes.status === 401) {
-      // On iOS/iPadOS the httpOnly session cookie written by the login fetch
-      // may not be flushed to the cookie jar before the first in-page requests
-      // fire after window.location.replace. Retry with increasing delays.
       for (let attempt = 0; attempt < 5; attempt++) {
         await new Promise((r) => setTimeout(r, 300));
         [cfgRes, meRes] = await Promise.all([
@@ -180,7 +178,6 @@ export default function AdminPage() {
     setGlobalSafety(cfg.globalSafety ?? {});
     setClassrooms(cfg.classrooms ?? {});
 
-    // Admin-only: load stories, recordings, and teacher accounts.
     if (userRole !== 'teacher') {
       const [storyRes, teachersRes] = await Promise.all([
         fetch('/api/stories'),
@@ -193,7 +190,6 @@ export default function AdminPage() {
         const data = await teachersRes.json();
         setTeachers(Array.isArray(data) ? data : []);
       }
-      // Load recordings separately after stories are known
       if (storyList.length > 0) {
         const results = await Promise.all(
           storyList.map((s: Story) =>
@@ -319,7 +315,6 @@ export default function AdminPage() {
     }
   }
 
-  // Helpers for per-user locked-field configuration
   function getUserCfg(username: string): UserConfig {
     return userConfigs[username] ?? {};
   }
@@ -347,7 +342,6 @@ export default function AdminPage() {
     }));
   }
 
-  // Collect all unique student usernames from file-based students + stories
   const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME ?? 'admin';
   const studentUsernames = Array.from(
     new Set([
@@ -356,7 +350,6 @@ export default function AdminPage() {
     ]),
   ).filter((u) => u !== adminUsername);
 
-  // ── Student management handlers ─────────────────────────────────────────────
   async function handleAddStudent(e: React.FormEvent) {
     e.preventDefault();
     setStudentError('');
@@ -448,8 +441,6 @@ export default function AdminPage() {
 
   async function handleDeleteTeacher(username: string) {
     if (!confirm(`Delete teacher "${username}"?`)) return;
-    // Teachers are stored as regular users with role='teacher'; the shared
-    // DELETE endpoint works for any user type.
     await fetch(`/api/admin/students/${encodeURIComponent(username)}`, { method: 'DELETE' });
     const refreshed = await fetch('/api/admin/teachers');
     if (refreshed.ok) setTeachers(await refreshed.json());
@@ -465,807 +456,947 @@ export default function AdminPage() {
     if (refreshed.ok) setTeachers(await refreshed.json());
   }
 
-  // Derive the effective global maturity range for constraining per-student sliders
   const effectiveGlobalMin = globalSafety.maturityLevelRange?.min ?? MATURITY_LEVEL_MIN;
   const effectiveGlobalMax = globalSafety.maturityLevelRange?.max ?? MATURITY_LEVEL_MAX;
 
+  // Tabs available per role
+  const adminTabs: { id: AdminTab; label: string; emoji: string }[] = isTeacher
+    ? [
+        { id: 'overview', label: 'Overview', emoji: '📊' },
+        { id: 'students', label: 'Students', emoji: '👥' },
+        { id: 'classrooms', label: 'Classrooms', emoji: '🏫' },
+      ]
+    : [
+        { id: 'overview', label: 'Overview', emoji: '📊' },
+        { id: 'students', label: 'Students', emoji: '👥' },
+        { id: 'classrooms', label: 'Classrooms', emoji: '🏫' },
+        { id: 'safety', label: 'Safety', emoji: '🛡️' },
+        { id: 'config', label: 'Config', emoji: '🔌' },
+        { id: 'content', label: 'Content', emoji: '📚' },
+      ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-zinc-900 text-white">
-      <header className="border-b border-white/10 px-6 py-4 flex justify-between items-center backdrop-blur-sm bg-white/5">
+      {/* Header */}
+      <header className="border-b border-white/10 px-6 py-3 flex justify-between items-center backdrop-blur-sm bg-white/5">
         <div className="flex items-center gap-3">
           <span className="text-2xl">🦝</span>
-          <h1 className="text-xl font-bold">Tanuki Stories — {isTeacher ? 'Teacher Dashboard' : 'Admin'}</h1>
+          <h1 className="text-lg font-bold">Tanuki — {isTeacher ? 'Teacher Dashboard' : 'Admin'}</h1>
         </div>
         <button
           onClick={handleLogout}
-          className="text-sm text-gray-400 hover:text-white transition-colors border border-white/20 px-4 py-2 rounded-xl hover:bg-white/10"
+          className="text-sm text-gray-400 hover:text-white transition-colors border border-white/20 px-3 py-1.5 rounded-xl hover:bg-white/10"
         >
           Logout
         </button>
       </header>
 
-      <main className="max-w-4xl mx-auto p-6 space-y-8">
-
-        {/* API Configuration — admin only */}
-        {!isTeacher && (
-        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <span>🔌</span> API Configuration
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-gray-300 mb-1">
-                OpenAI-compatible base URL
-                <span className="text-gray-500 ml-2 text-xs">(blank = api.openai.com)</span>
-              </label>
-              <input
-                type="url"
-                value={apiBaseUrl}
-                onChange={(e) => setApiBaseUrl(e.target.value)}
-                placeholder="http://localhost:11434/v1"
-                className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-300 mb-1">
-                Model
-                <span className="text-gray-500 ml-2 text-xs">(blank = gpt-4o-mini)</span>
-              </label>
-              <input
-                type="text"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="gpt-4o-mini"
-                className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-300 mb-1">
-              Local .safetensors Model
-              <span className="text-gray-500 ml-2 text-xs">(overrides API settings above when set)</span>
-            </label>
-            <input
-              type="text"
-              value={localModelId}
-              onChange={(e) => setLocalModelId(e.target.value)}
-              placeholder="e.g. facebook/opt-125m  or  /data/models/my-llm"
-              className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Enter a HuggingFace model ID to download and run locally, or an absolute path to a
-              directory containing .safetensors weight files already on this server.
-              The model is loaded once and cached for subsequent requests.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-300 mb-1">System Prompt</label>
-            <textarea
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              rows={5}
-              className="w-full bg-white/5 border border-white/20 rounded-xl p-4 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
-              placeholder="Enter the system prompt for story generation..."
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
+      {/* Tab navigation */}
+      <div className="border-b border-white/10 bg-white/[0.03] px-4">
+        <div className="max-w-6xl mx-auto flex gap-1 overflow-x-auto">
+          {adminTabs.map((tab) => (
             <button
-              onClick={handleSave}
-              disabled={saving}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2 rounded-xl transition-colors disabled:opacity-50"
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? 'border-indigo-400 text-indigo-300'
+                  : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-white/30'
+              }`}
             >
-              {saving ? 'Saving...' : 'Save Settings'}
+              <span>{tab.emoji}</span>
+              {tab.label}
             </button>
-            {saved && <span className="text-green-400 text-sm">✓ Saved!</span>}
-          </div>
-        </section>
-        )} {/* end !isTeacher API Configuration */}
+          ))}
+        </div>
+      </div>
 
-        {/* Student Management — admin only */}
-        {!isTeacher && (
-        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-6">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <span>👥</span> Student Management
-          </h2>
+      <main className="max-w-6xl mx-auto p-4">
 
-          {/* Existing students */}
-          {students.length > 0 && (
-            <div>
-              <h3 className="text-sm font-medium text-gray-300 mb-2">Enrolled students ({students.length})</h3>
-              <ul className="space-y-2">
-                {students.map((s) => (
-                  <li key={s.username} className="flex items-center justify-between bg-white/5 rounded-xl px-4 py-2 border border-white/10">
-                    <span className="text-sm flex items-center gap-2">
-                      👤 {s.username}
-                      {s.readingLevel && (
-                        <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full">
-                          {s.readingLevel}
-                        </span>
-                      )}
-                    </span>
-                    <button
-                      onClick={() => handleDeleteStudent(s.username)}
-                      className="text-xs text-red-400 hover:text-red-300 transition-colors border border-red-400/30 px-3 py-1 rounded-lg hover:bg-red-500/10"
-                    >
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+        {/* ── OVERVIEW TAB ─────────────────────────────────────────────── */}
+        {activeTab === 'overview' && (
+          <div className="space-y-5">
+            {/* Summary stat cards */}
+            {summary && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <StatCard
+                  emoji="👥"
+                  label="Total Students"
+                  value={summary.totalStudents}
+                  sub={`${summary.onboardedStudents} onboarded`}
+                  color="blue"
+                />
+                <StatCard
+                  emoji="⚡"
+                  label="Active (7 days)"
+                  value={summary.activeStudents7Days}
+                  sub={summary.totalStudents > 0 ? `${Math.round((summary.activeStudents7Days / summary.totalStudents) * 100)}% of students` : '—'}
+                  color="green"
+                />
+                <StatCard
+                  emoji="📖"
+                  label="Stories (30 days)"
+                  value={summary.storiesLast30Days}
+                  sub={`${summary.storiesLast7Days} this week`}
+                  color="purple"
+                />
+                <StatCard
+                  emoji="✅"
+                  label="Onboarding Rate"
+                  value={summary.totalStudents > 0 ? `${Math.round((summary.onboardedStudents / summary.totalStudents) * 100)}%` : '—'}
+                  sub={`${summary.onboardedStudents}/${summary.totalStudents} students`}
+                  color="amber"
+                />
+              </div>
+            )}
 
-          {/* Add single student */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-300 mb-2">Add a student</h3>
-            <form onSubmit={handleAddStudent} className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="text"
-                value={newStudentUsername}
-                onChange={(e) => setNewStudentUsername(e.target.value)}
-                placeholder="Username"
-                className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
-              />
-              <input
-                type="password"
-                value={newStudentPassword}
-                onChange={(e) => setNewStudentPassword(e.target.value)}
-                placeholder="Password"
-                className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
-              />
-              <button
-                type="submit"
-                className="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded-xl transition-colors whitespace-nowrap"
-              >
-                Add Student
-              </button>
-            </form>
-          </div>
+            {/* Two-column layout: analytics table + sidebar charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Analytics table */}
+              <div className="lg:col-span-2 bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                  <h2 className="text-sm font-semibold flex items-center gap-2">
+                    <span>📊</span> Student Activity
+                  </h2>
+                  <button
+                    onClick={loadAnalytics}
+                    className="text-xs text-gray-400 hover:text-white border border-white/20 px-2.5 py-1 rounded-lg hover:bg-white/10 transition-colors"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                {analytics.length === 0 ? (
+                  <p className="text-gray-500 text-sm p-4">No student data yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-gray-400 border-b border-white/10 bg-white/[0.02]">
+                          <th className="px-3 py-2.5 font-medium">Student</th>
+                          <th className="px-3 py-2.5 font-medium">Level</th>
+                          <th className="px-3 py-2.5 font-medium text-center">Status</th>
+                          <th className="px-3 py-2.5 font-medium text-center">Total</th>
+                          <th className="px-3 py-2.5 font-medium text-center">7d</th>
+                          <th className="px-3 py-2.5 font-medium text-center">30d</th>
+                          <th className="px-3 py-2.5 font-medium">Activity</th>
+                          <th className="px-3 py-2.5 font-medium">Last Active</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/[0.04]">
+                        {analytics.map((a) => {
+                          const maxStories = Math.max(...analytics.map((x) => x.totalStories), 1);
+                          const pct = Math.round((a.totalStories / maxStories) * 100);
+                          return (
+                            <tr key={a.username} className="hover:bg-white/[0.04] transition-colors">
+                              <td className="px-3 py-2 font-medium text-gray-200">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="text-gray-500">👤</span>
+                                  {a.username}
+                                </span>
+                                {a.favoriteGenres && a.favoriteGenres.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-0.5">
+                                    {a.favoriteGenres.slice(0, 2).map((g) => (
+                                      <span key={g} className="text-[10px] bg-indigo-500/15 text-indigo-300 border border-indigo-500/20 px-1.5 py-0.5 rounded-full leading-none">{g}</span>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-3 py-2">
+                                {a.readingLevel ? (
+                                  <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-400/30 px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap">
+                                    {a.readingLevel}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-600">—</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                {a.onboardingCompleted ? (
+                                  <span className="text-green-400 text-[10px]">✓</span>
+                                ) : (
+                                  <span className="text-yellow-500 text-[10px]">⏳</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-center font-mono text-gray-200">{a.totalStories}</td>
+                              <td className="px-3 py-2 text-center font-mono">
+                                <span className={a.storiesLast7Days > 0 ? 'text-green-400' : 'text-gray-600'}>
+                                  {a.storiesLast7Days}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-center font-mono">
+                                <span className={a.storiesLast30Days > 0 ? 'text-blue-400' : 'text-gray-600'}>
+                                  {a.storiesLast30Days}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 w-20">
+                                <div className="h-1.5 bg-white/10 rounded-full overflow-hidden w-full">
+                                  <div
+                                    className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all"
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              </td>
+                              <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
+                                {a.lastActiveAt ? new Date(a.lastActiveAt).toLocaleDateString() : '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
 
-          {/* CSV import */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-300 mb-2">Import from CSV</h3>
-            <p className="text-xs text-gray-500 mb-2">
-              CSV format: <code className="bg-white/10 px-1 rounded">username,password,reading_level</code> — one student per line, optional header row. Reading level values: <code className="bg-white/10 px-1 rounded">Elementary</code>, <code className="bg-white/10 px-1 rounded">Middle School</code>, <code className="bg-white/10 px-1 rounded">High School</code>, <code className="bg-white/10 px-1 rounded">Adult</code>.
-            </p>
-            <div className="flex items-center gap-3 mb-2">
-              <input
-                ref={csvFileRef}
-                type="file"
-                accept=".csv,text/csv,text/plain"
-                onChange={handleCsvFileChange}
-                className="text-sm text-gray-400 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border file:border-white/20 file:bg-white/5 file:text-gray-300 file:text-xs hover:file:bg-white/10"
-              />
-            </div>
-            <textarea
-              value={csvText}
-              onChange={(e) => setCsvText(e.target.value)}
-              rows={4}
-              placeholder={"username,password,reading_level\nalice,pass123,Elementary\nbob,pass456,Middle School"}
-              className="w-full bg-white/5 border border-white/20 rounded-xl p-4 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500 font-mono"
-            />
-            <button
-              onClick={handleCsvImport}
-              disabled={csvImporting || !csvText.trim()}
-              className="mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2 rounded-xl transition-colors disabled:opacity-50"
-            >
-              {csvImporting ? 'Importing...' : 'Import CSV'}
-            </button>
-          </div>
-
-          {studentError && <p className="text-red-400 text-sm">{studentError}</p>}
-          {studentSuccess && <p className="text-green-400 text-sm">✓ {studentSuccess}</p>}
-        </section>
-        )} {/* end !isTeacher Student Management */}
-
-        {/* Per-user locked fields — admin only */}
-        {!isTeacher && (
-        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-6">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <span>🔒</span> Student Configuration Locks
-          </h2>
-          <p className="text-sm text-gray-400">
-            Lock specific story options for individual students and set admin-controlled defaults.
-          </p>
-
-          {studentUsernames.map((username) => {
-            const cfg = getUserCfg(username);
-            const locked = cfg.lockedFields ?? [];
-            const defaults = cfg.defaults ?? {};
-
-            return (
-              <div key={username} className="border border-white/10 rounded-2xl p-4 space-y-3">
-                <h3 className="font-medium text-sm">
-                  👤 <span className="font-bold">{username}</span>
-                </h3>
-                <div className="space-y-3">
-                  {LOCKABLE_FIELDS.map(({ key, label }) => {
-                    const isLocked = locked.includes(key);
-                    return (
-                      <div key={key} className="flex items-center gap-4 flex-wrap">
-                        <label className="flex items-center gap-2 cursor-pointer min-w-[180px]">
-                          <input
-                            type="checkbox"
-                            checked={isLocked}
-                            onChange={() => toggleLock(username, key)}
-                            className="w-4 h-4 rounded accent-yellow-400"
-                          />
-                          <span className="text-sm">{label}</span>
-                        </label>
-
-                        {isLocked && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-400">Default:</span>
-                            {key === 'chapterCount' && (
-                              <input
-                                type="number"
-                                min={1}
-                                value={(defaults.chapterCount as number | undefined) ?? 1}
-                                onChange={(e) => setDefaultValue(username, key, Number(e.target.value))}
-                                className="w-16 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm text-center"
+              {/* Sidebar: reading level distribution + top genres */}
+              <div className="space-y-4">
+                {summary && Object.keys(summary.readingLevelDistribution).length > 0 && (
+                  <div className="bg-white/5 rounded-2xl border border-white/10 p-4">
+                    <h3 className="text-sm font-semibold mb-3 text-gray-300">Reading Levels</h3>
+                    <div className="space-y-2">
+                      {READING_LEVEL_VALUES.filter((lvl) => summary.readingLevelDistribution[lvl] > 0).map((lvl) => {
+                        const count = summary.readingLevelDistribution[lvl];
+                        const pct = Math.round((count / summary.totalStudents) * 100);
+                        return (
+                          <div key={lvl}>
+                            <div className="flex justify-between text-xs mb-0.5">
+                              <span className="text-gray-400 truncate">{lvl}</span>
+                              <span className="text-gray-300 ml-2 font-mono">{count}</span>
+                            </div>
+                            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-blue-500/70"
+                                style={{ width: `${pct}%` }}
                               />
-                            )}
-                            {key === 'readingComplexity' && (
-                              <select
-                                value={defaults.readingComplexity ?? 'intermediate'}
-                                onChange={(e) => setDefaultValue(username, key, e.target.value)}
-                                className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm"
-                              >
-                                <option value="simple">Simple</option>
-                                <option value="intermediate">Intermediate</option>
-                                <option value="advanced">Advanced</option>
-                              </select>
-                            )}
-                            {key === 'vocabularyComplexity' && (
-                              <select
-                                value={defaults.vocabularyComplexity ?? 'intermediate'}
-                                onChange={(e) => setDefaultValue(username, key, e.target.value)}
-                                className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm"
-                              >
-                                <option value="basic">Basic</option>
-                                <option value="intermediate">Intermediate</option>
-                                <option value="advanced">Advanced</option>
-                              </select>
-                            )}
-                            {key === 'genre' && (
-                              <select
-                                value={defaults.genre ?? ''}
-                                onChange={(e) => setDefaultValue(username, key, e.target.value)}
-                                className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm"
-                              >
-                                <option value="">Any</option>
-                                {GENRES.map((g) => <option key={g} value={g}>{g}</option>)}
-                              </select>
-                            )}
+                            </div>
                           </div>
-                        )}
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {summary && summary.topGenres.length > 0 && (
+                  <div className="bg-white/5 rounded-2xl border border-white/10 p-4">
+                    <h3 className="text-sm font-semibold mb-3 text-gray-300">Top Genres</h3>
+                    <div className="space-y-2">
+                      {summary.topGenres.map(({ genre, count }) => {
+                        const pct = Math.round((count / summary.topGenres[0].count) * 100);
+                        return (
+                          <div key={genre}>
+                            <div className="flex justify-between text-xs mb-0.5">
+                              <span className="text-gray-400 truncate">{genre}</span>
+                              <span className="text-gray-300 ml-2 font-mono">{count}</span>
+                            </div>
+                            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-purple-500/70"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick stats */}
+                {summary && (
+                  <div className="bg-white/5 rounded-2xl border border-white/10 p-4 space-y-2">
+                    <h3 className="text-sm font-semibold mb-2 text-gray-300">All Time</h3>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Total stories</span>
+                      <span className="text-gray-200 font-mono font-semibold">{summary.totalStories}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Active students (30d)</span>
+                      <span className="text-gray-200 font-mono font-semibold">{summary.activeStudents30Days}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Avg stories/student</span>
+                      <span className="text-gray-200 font-mono font-semibold">
+                        {summary.totalStudents > 0 ? (summary.totalStories / summary.totalStudents).toFixed(1) : '—'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── STUDENTS TAB ─────────────────────────────────────────────── */}
+        {activeTab === 'students' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Left: Management */}
+            {!isTeacher && (
+              <div className="space-y-4">
+                <div className="bg-white/5 rounded-2xl border border-white/10 p-4 space-y-4">
+                  <h2 className="text-sm font-semibold flex items-center gap-2">
+                    <span>👥</span> Manage Students
+                  </h2>
+
+                  {/* Student list */}
+                  {students.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-400 mb-2">Enrolled ({students.length})</p>
+                      <ul className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                        {students.map((s) => (
+                          <li key={s.username} className="flex items-center justify-between bg-white/5 rounded-xl px-3 py-1.5 border border-white/10">
+                            <span className="text-xs flex items-center gap-1.5">
+                              👤 {s.username}
+                              {s.readingLevel && (
+                                <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-400/30 px-1.5 py-0.5 rounded-full leading-none">
+                                  {s.readingLevel}
+                                </span>
+                              )}
+                            </span>
+                            <button
+                              onClick={() => handleDeleteStudent(s.username)}
+                              className="text-[10px] text-red-400 hover:text-red-300 border border-red-400/30 px-2 py-0.5 rounded-lg hover:bg-red-500/10 transition-colors"
+                            >
+                              Remove
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Add student form */}
+                  <div>
+                    <p className="text-xs text-gray-400 mb-2">Add student</p>
+                    <form onSubmit={handleAddStudent} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newStudentUsername}
+                        onChange={(e) => setNewStudentUsername(e.target.value)}
+                        placeholder="Username"
+                        className="flex-1 bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                      />
+                      <input
+                        type="password"
+                        value={newStudentPassword}
+                        onChange={(e) => setNewStudentPassword(e.target.value)}
+                        placeholder="Password"
+                        className="flex-1 bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                      />
+                      <button
+                        type="submit"
+                        className="bg-green-600 hover:bg-green-700 text-white font-medium px-3 py-1.5 rounded-xl transition-colors text-xs whitespace-nowrap"
+                      >
+                        Add
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* CSV import */}
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">Import CSV <span className="text-gray-600">(username,password,reading_level)</span></p>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <input
+                        ref={csvFileRef}
+                        type="file"
+                        accept=".csv,text/csv,text/plain"
+                        onChange={handleCsvFileChange}
+                        className="text-xs text-gray-400 file:mr-2 file:py-0.5 file:px-2 file:rounded-lg file:border file:border-white/20 file:bg-white/5 file:text-gray-300 file:text-xs hover:file:bg-white/10"
+                      />
+                    </div>
+                    <textarea
+                      value={csvText}
+                      onChange={(e) => setCsvText(e.target.value)}
+                      rows={3}
+                      placeholder={"alice,pass123,Elementary\nbob,pass456,Middle School"}
+                      className="w-full bg-white/5 border border-white/20 rounded-xl p-2.5 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500 font-mono"
+                    />
+                    <button
+                      onClick={handleCsvImport}
+                      disabled={csvImporting || !csvText.trim()}
+                      className="mt-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-1.5 rounded-xl transition-colors disabled:opacity-50 text-xs"
+                    >
+                      {csvImporting ? 'Importing…' : 'Import CSV'}
+                    </button>
+                  </div>
+
+                  {studentError && <p className="text-red-400 text-xs">{studentError}</p>}
+                  {studentSuccess && <p className="text-green-400 text-xs">✓ {studentSuccess}</p>}
+                </div>
+
+                {/* Teacher management (admin only) */}
+                <div className="bg-white/5 rounded-2xl border border-white/10 p-4 space-y-4">
+                  <h2 className="text-sm font-semibold flex items-center gap-2">
+                    <span>👩‍🏫</span> Teachers
+                  </h2>
+
+                  {teachers.length > 0 && (
+                    <ul className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {teachers.map((t) => (
+                        <li key={t.username} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium">👩‍🏫 {t.username}</span>
+                            <button
+                              onClick={() => handleDeleteTeacher(t.username)}
+                              className="text-[10px] text-red-400 hover:text-red-300 border border-red-400/30 px-2 py-0.5 rounded-lg hover:bg-red-500/10 transition-colors"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          {Object.keys(classrooms).length > 0 && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {Object.entries(classrooms).map(([id, cfg]) => (
+                                <label key={id} className="flex items-center gap-1 text-[10px] cursor-pointer select-none text-gray-300">
+                                  <input
+                                    type="checkbox"
+                                    checked={t.managedClassroomIds.includes(id)}
+                                    onChange={() => {
+                                      const next = t.managedClassroomIds.includes(id)
+                                        ? t.managedClassroomIds.filter((c) => c !== id)
+                                        : [...t.managedClassroomIds, id];
+                                      handleUpdateTeacherClassrooms(t.username, next);
+                                    }}
+                                    className="w-3 h-3 rounded accent-indigo-400"
+                                  />
+                                  {cfg.name}
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <form onSubmit={handleAddTeacher} className="space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newTeacherUsername}
+                        onChange={(e) => setNewTeacherUsername(e.target.value)}
+                        placeholder="Username"
+                        className="flex-1 bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                      />
+                      <input
+                        type="password"
+                        value={newTeacherPassword}
+                        onChange={(e) => setNewTeacherPassword(e.target.value)}
+                        placeholder="Password"
+                        className="flex-1 bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                      />
+                      <button
+                        type="submit"
+                        className="bg-green-600 hover:bg-green-700 text-white font-medium px-3 py-1.5 rounded-xl transition-colors text-xs whitespace-nowrap"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    {Object.keys(classrooms).length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(classrooms).map(([id, cfg]) => (
+                          <label key={id} className="flex items-center gap-1.5 text-xs cursor-pointer select-none text-gray-300">
+                            <input
+                              type="checkbox"
+                              checked={newTeacherClassroomIds.includes(id)}
+                              onChange={() =>
+                                setNewTeacherClassroomIds((prev) =>
+                                  prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
+                                )
+                              }
+                              className="w-3.5 h-3.5 rounded accent-indigo-400"
+                            />
+                            {cfg.name}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </form>
+
+                  {teacherError && <p className="text-red-400 text-xs">{teacherError}</p>}
+                  {teacherSuccess && <p className="text-green-400 text-xs">✓ {teacherSuccess}</p>}
+                </div>
+              </div>
+            )}
+
+            {/* Right: Student onboarding settings */}
+            <div className={`bg-white/5 rounded-2xl border border-white/10 overflow-hidden ${isTeacher ? 'lg:col-span-2' : ''}`}>
+              <div className="px-4 py-3 border-b border-white/10">
+                <h2 className="text-sm font-semibold flex items-center gap-2">
+                  <span>🎓</span> Student Settings
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">Override reading level, maturity, and blocked topics per student.</p>
+              </div>
+              {settingsMsg && (
+                <p className={`text-xs px-4 pt-2 ${settingsMsg.includes('fail') || settingsMsg.includes('must') ? 'text-red-400' : 'text-green-400'}`}>
+                  {settingsMsg.includes('fail') || settingsMsg.includes('must') ? settingsMsg : `✓ ${settingsMsg}`}
+                </p>
+              )}
+              {students.length === 0 ? (
+                <p className="text-gray-500 text-sm p-4">No students enrolled yet.</p>
+              ) : (
+                <div className="divide-y divide-white/[0.04] overflow-y-auto max-h-[600px]">
+                  {students.map((s) => (
+                    <StudentSettingsRow
+                      key={s.username}
+                      student={s}
+                      saving={settingsSaving && editingSettings === s.username}
+                      globalMin={effectiveGlobalMin}
+                      globalMax={effectiveGlobalMax}
+                      onSave={(rl, reset, maturityLevel, blockedTopics) => {
+                        setEditingSettings(s.username);
+                        handleSaveStudentSettings(s.username, rl, reset, maturityLevel, blockedTopics);
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── CLASSROOMS TAB ─────────────────────────────────────────────── */}
+        {activeTab === 'classrooms' && (
+          <div className="space-y-4">
+            {!isTeacher && (
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={newClassroomName}
+                  onChange={(e) => setNewClassroomName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddClassroom(); } }}
+                  placeholder="New classroom name"
+                  className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                />
+                <button
+                  onClick={handleAddClassroom}
+                  disabled={!newClassroomName.trim()}
+                  className="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded-xl transition-colors disabled:opacity-50 whitespace-nowrap"
+                >
+                  Add Classroom
+                </button>
+              </div>
+            )}
+
+            {Object.keys(classrooms).length === 0 ? (
+              <div className="bg-white/5 rounded-2xl border border-white/10 p-8 text-center text-gray-500 text-sm">
+                No classrooms yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {Object.entries(classrooms).map(([id, cfg]) => (
+                  <ClassroomRow
+                    key={id}
+                    id={id}
+                    config={cfg}
+                    allStudents={students.map((s) => s.username)}
+                    globalMin={effectiveGlobalMin}
+                    globalMax={effectiveGlobalMax}
+                    onChange={(patch) => updateClassroom(id, patch)}
+                    onDelete={() => handleDeleteClassroom(id)}
+                    canDelete={!isTeacher}
+                  />
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSaveClassrooms}
+                disabled={classroomsSaving}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2 rounded-xl transition-colors disabled:opacity-50"
+              >
+                {classroomsSaving ? 'Saving…' : 'Save Classrooms'}
+              </button>
+              {classroomsSaved && <span className="text-green-400 text-sm">✓ Saved!</span>}
+            </div>
+          </div>
+        )}
+
+        {/* ── SAFETY TAB (admin only) ───────────────────────────────────── */}
+        {activeTab === 'safety' && !isTeacher && (
+          <div className="max-w-2xl space-y-5">
+            <div className="bg-white/5 rounded-2xl border border-white/10 p-5 space-y-5">
+              <h2 className="text-sm font-semibold flex items-center gap-2">
+                <span>🛡️</span> Global Safety Defaults
+              </h2>
+              <p className="text-xs text-gray-400">
+                School-wide defaults for content maturity and topic blocking. These apply to every student unless overridden by a classroom or per-student setting.
+              </p>
+
+              <div>
+                <h3 className="text-xs font-medium text-gray-400 mb-2">Allowed maturity level range</h3>
+                <MaturityRangePicker
+                  min={globalSafety.maturityLevelRange?.min ?? MATURITY_LEVEL_MIN}
+                  max={globalSafety.maturityLevelRange?.max ?? MATURITY_LEVEL_MAX}
+                  onChange={(min, max) =>
+                    setGlobalSafety((prev) => ({ ...prev, maturityLevelRange: { min, max } }))
+                  }
+                />
+              </div>
+
+              <div>
+                <h3 className="text-xs font-medium text-gray-400 mb-2">Default maturity level</h3>
+                <MaturitySlider
+                  value={globalSafety.contentMaturityLevel ?? MATURITY_LEVEL_DEFAULT}
+                  min={globalSafety.maturityLevelRange?.min ?? MATURITY_LEVEL_MIN}
+                  max={globalSafety.maturityLevelRange?.max ?? MATURITY_LEVEL_MAX}
+                  onChange={(v) => setGlobalSafety((prev) => ({ ...prev, contentMaturityLevel: v }))}
+                />
+              </div>
+
+              <div>
+                <h3 className="text-xs font-medium text-gray-400 mb-2">Globally blocked topics</h3>
+                <BlockedTopicsPicker
+                  value={globalSafety.blockedTopics ?? []}
+                  onChange={(topics) => setGlobalSafety((prev) => ({ ...prev, blockedTopics: topics }))}
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSaveGlobalSafety}
+                  disabled={globalSafetySaving}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2 rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {globalSafetySaving ? 'Saving…' : 'Save Safety Settings'}
+                </button>
+                {globalSafetySaved && <span className="text-green-400 text-sm">✓ Saved!</span>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── CONFIG TAB (admin only) ───────────────────────────────────── */}
+        {activeTab === 'config' && !isTeacher && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* API Configuration */}
+            <div className="bg-white/5 rounded-2xl border border-white/10 p-5 space-y-4">
+              <h2 className="text-sm font-semibold flex items-center gap-2">
+                <span>🔌</span> API Configuration
+              </h2>
+
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">OpenAI-compatible base URL <span className="text-gray-600">(blank = api.openai.com)</span></label>
+                <input
+                  type="url"
+                  value={apiBaseUrl}
+                  onChange={(e) => setApiBaseUrl(e.target.value)}
+                  placeholder="http://localhost:11434/v1"
+                  className="w-full bg-white/5 border border-white/20 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Model <span className="text-gray-600">(blank = gpt-4o-mini)</span></label>
+                <input
+                  type="text"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder="gpt-4o-mini"
+                  className="w-full bg-white/5 border border-white/20 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Local .safetensors model <span className="text-gray-600">(overrides API when set)</span></label>
+                <input
+                  type="text"
+                  value={localModelId}
+                  onChange={(e) => setLocalModelId(e.target.value)}
+                  placeholder="e.g. facebook/opt-125m  or  /data/models/my-llm"
+                  className="w-full bg-white/5 border border-white/20 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">System Prompt</label>
+                <textarea
+                  value={systemPrompt}
+                  onChange={(e) => setSystemPrompt(e.target.value)}
+                  rows={4}
+                  className="w-full bg-white/5 border border-white/20 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                  placeholder="Enter the system prompt for story generation…"
+                />
+              </div>
+
+              <div>
+                <h3 className="text-xs font-medium text-gray-400 mb-2">Onboarding reading level range</h3>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div>
+                    <label className="block text-[10px] text-gray-500 mb-1">Minimum</label>
+                    <select
+                      value={rlRangeMin}
+                      onChange={(e) => setRlRangeMin(e.target.value as ReadingLevel)}
+                      className="bg-white/10 border border-white/20 rounded-xl px-2 py-1.5 text-xs"
+                    >
+                      {READING_LEVEL_VALUES.map((lvl) => (
+                        <option key={lvl} value={lvl}>{lvl}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <span className="text-gray-500 text-sm">→</span>
+                  <div>
+                    <label className="block text-[10px] text-gray-500 mb-1">Maximum</label>
+                    <select
+                      value={rlRangeMax}
+                      onChange={(e) => setRlRangeMax(e.target.value as ReadingLevel)}
+                      className="bg-white/10 border border-white/20 rounded-xl px-2 py-1.5 text-xs"
+                    >
+                      {READING_LEVEL_VALUES.map((lvl) => (
+                        <option key={lvl} value={lvl}>{lvl}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                {rlRangeError && <p className="text-red-400 text-xs mt-1">{rlRangeError}</p>}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2 rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {saving ? 'Saving…' : 'Save Settings'}
+                </button>
+                {saved && <span className="text-green-400 text-sm">✓ Saved!</span>}
+              </div>
+            </div>
+
+            {/* Student Config Locks */}
+            <div className="bg-white/5 rounded-2xl border border-white/10 p-5 space-y-4">
+              <h2 className="text-sm font-semibold flex items-center gap-2">
+                <span>🔒</span> Student Configuration Locks
+              </h2>
+              <p className="text-xs text-gray-400">Lock story options for individual students.</p>
+
+              {studentUsernames.length === 0 ? (
+                <p className="text-gray-500 text-xs">No students yet.</p>
+              ) : (
+                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                  {studentUsernames.map((username) => {
+                    const cfg = getUserCfg(username);
+                    const locked = cfg.lockedFields ?? [];
+                    const defaults = cfg.defaults ?? {};
+
+                    return (
+                      <div key={username} className="border border-white/10 rounded-xl p-3 space-y-2">
+                        <h3 className="text-xs font-medium">👤 {username}</h3>
+                        <div className="grid grid-cols-1 gap-1.5">
+                          {LOCKABLE_FIELDS.map(({ key, label }) => {
+                            const isLocked = locked.includes(key);
+                            return (
+                              <div key={key} className="flex items-center gap-3 flex-wrap">
+                                <label className="flex items-center gap-2 cursor-pointer min-w-[160px]">
+                                  <input
+                                    type="checkbox"
+                                    checked={isLocked}
+                                    onChange={() => toggleLock(username, key)}
+                                    className="w-3.5 h-3.5 rounded accent-yellow-400"
+                                  />
+                                  <span className="text-xs text-gray-300">{label}</span>
+                                </label>
+
+                                {isLocked && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] text-gray-500">Default:</span>
+                                    {key === 'chapterCount' && (
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        value={(defaults.chapterCount as number | undefined) ?? 1}
+                                        onChange={(e) => setDefaultValue(username, key, Number(e.target.value))}
+                                        className="w-14 bg-white/10 border border-white/20 rounded-lg px-2 py-0.5 text-xs text-center"
+                                      />
+                                    )}
+                                    {key === 'readingComplexity' && (
+                                      <select
+                                        value={defaults.readingComplexity ?? 'intermediate'}
+                                        onChange={(e) => setDefaultValue(username, key, e.target.value)}
+                                        className="bg-white/10 border border-white/20 rounded-lg px-2 py-0.5 text-xs"
+                                      >
+                                        <option value="simple">Simple</option>
+                                        <option value="intermediate">Intermediate</option>
+                                        <option value="advanced">Advanced</option>
+                                      </select>
+                                    )}
+                                    {key === 'vocabularyComplexity' && (
+                                      <select
+                                        value={defaults.vocabularyComplexity ?? 'intermediate'}
+                                        onChange={(e) => setDefaultValue(username, key, e.target.value)}
+                                        className="bg-white/10 border border-white/20 rounded-lg px-2 py-0.5 text-xs"
+                                      >
+                                        <option value="basic">Basic</option>
+                                        <option value="intermediate">Intermediate</option>
+                                        <option value="advanced">Advanced</option>
+                                      </select>
+                                    )}
+                                    {key === 'genre' && (
+                                      <select
+                                        value={defaults.genre ?? ''}
+                                        onChange={(e) => setDefaultValue(username, key, e.target.value)}
+                                        className="bg-white/10 border border-white/20 rounded-lg px-2 py-0.5 text-xs"
+                                      >
+                                        <option value="">Any</option>
+                                        {GENRES.map((g) => <option key={g} value={g}>{g}</option>)}
+                                      </select>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
+              )}
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2 rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {saving ? 'Saving…' : 'Save Locks'}
+                </button>
+                {saved && <span className="text-green-400 text-sm">✓ Saved!</span>}
               </div>
-            );
-          })}
-
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2 rounded-xl transition-colors disabled:opacity-50"
-            >
-              {saving ? 'Saving...' : 'Save Locks'}
-            </button>
-            {saved && <span className="text-green-400 text-sm">✓ Saved!</span>}
-          </div>
-        </section>
-        )} {/* end !isTeacher Config Locks */}
-
-        {/* Reading Level Range — admin only */}
-        {!isTeacher && (
-        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <span>📖</span> Onboarding Reading Level Range
-          </h2>
-          <p className="text-sm text-gray-400">
-            Restrict which reading levels students can choose during onboarding. Only levels within
-            this range will be shown to students.
-          </p>
-          <div className="flex flex-wrap items-center gap-4">
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Minimum level</label>
-              <select
-                value={rlRangeMin}
-                onChange={(e) => setRlRangeMin(e.target.value as ReadingLevel)}
-                className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm"
-              >
-                {READING_LEVEL_VALUES.map((lvl) => (
-                  <option key={lvl} value={lvl}>{lvl}</option>
-                ))}
-              </select>
-            </div>
-            <span className="text-gray-500">→</span>
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Maximum level</label>
-              <select
-                value={rlRangeMax}
-                onChange={(e) => setRlRangeMax(e.target.value as ReadingLevel)}
-                className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm"
-              >
-                {READING_LEVEL_VALUES.map((lvl) => (
-                  <option key={lvl} value={lvl}>{lvl}</option>
-                ))}
-              </select>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2 rounded-xl transition-colors disabled:opacity-50"
-            >
-              {saving ? 'Saving...' : 'Save Range'}
-            </button>
-            {saved && <span className="text-green-400 text-sm">✓ Saved!</span>}
-            {rlRangeError && <span className="text-red-400 text-sm">{rlRangeError}</span>}
-          </div>
-        </section>
-        )} {/* end !isTeacher Reading Level Range */}
+        )}
 
-        {/* ── Global Safety Defaults — admin only ─────────────────────────── */}
-        {!isTeacher && (
-        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-5">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <span>🛡️</span> Global Safety Defaults
-          </h2>
-          <p className="text-sm text-gray-400">
-            Set school-wide defaults for content maturity and topic blocking. These apply to every
-            student unless overridden by a classroom or per-student setting. The allowed range also
-            constrains what values can be set anywhere in the system.
-          </p>
-
-          {/* Global maturity level range lock */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-300 mb-3">Allowed maturity level range</h3>
-            <p className="text-xs text-gray-500 mb-3">
-              Locks the system so no student or classroom can be assigned a level outside this range.
-              Setting max to &ldquo;None (6)&rdquo; allows unrestricted content for eligible students.
-            </p>
-            <MaturityRangePicker
-              min={globalSafety.maturityLevelRange?.min ?? MATURITY_LEVEL_MIN}
-              max={globalSafety.maturityLevelRange?.max ?? MATURITY_LEVEL_MAX}
-              onChange={(min, max) =>
-                setGlobalSafety((prev) => ({ ...prev, maturityLevelRange: { min, max } }))
-              }
-            />
-          </div>
-
-          {/* Global default maturity level */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-300 mb-2">Default maturity level</h3>
-            <p className="text-xs text-gray-500 mb-3">
-              Applied to students with no classroom or per-student maturity setting.
-            </p>
-            <MaturitySlider
-              value={globalSafety.contentMaturityLevel ?? MATURITY_LEVEL_DEFAULT}
-              min={globalSafety.maturityLevelRange?.min ?? MATURITY_LEVEL_MIN}
-              max={globalSafety.maturityLevelRange?.max ?? MATURITY_LEVEL_MAX}
-              onChange={(v) => setGlobalSafety((prev) => ({ ...prev, contentMaturityLevel: v }))}
-            />
-          </div>
-
-          {/* Global blocked topics */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-300 mb-2">Globally blocked topics</h3>
-            <p className="text-xs text-gray-500 mb-3">
-              These topics are blocked for <strong>all</strong> students regardless of any other settings.
-            </p>
-            <BlockedTopicsPicker
-              value={globalSafety.blockedTopics ?? []}
-              onChange={(topics) => setGlobalSafety((prev) => ({ ...prev, blockedTopics: topics }))}
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSaveGlobalSafety}
-              disabled={globalSafetySaving}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2 rounded-xl transition-colors disabled:opacity-50"
-            >
-              {globalSafetySaving ? 'Saving...' : 'Save Global Safety'}
-            </button>
-            {globalSafetySaved && <span className="text-green-400 text-sm">✓ Saved!</span>}
-          </div>
-        </section>
-        )} {/* end !isTeacher Global Safety */}
-
-        {/* ── Classrooms ───────────────────────────────────────────────────── */}
-        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-5">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <span>🏫</span> Classrooms
-          </h2>
-          <p className="text-sm text-gray-400">
-            {isTeacher
-              ? 'Configure safety settings and members for your assigned classrooms.'
-              : 'Group students into classrooms and apply shared safety settings. Per-student settings always take precedence over classroom settings; classroom settings take precedence over global defaults.'}
-          </p>
-
-          {/* Create classroom — admin only */}
-          {!isTeacher && (
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={newClassroomName}
-              onChange={(e) => setNewClassroomName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddClassroom(); } }}
-              placeholder="New classroom name"
-              className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
-            />
-            <button
-              onClick={handleAddClassroom}
-              disabled={!newClassroomName.trim()}
-              className="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded-xl transition-colors disabled:opacity-50 whitespace-nowrap"
-            >
-              Add Classroom
-            </button>
-          </div>
-          )}
-
-          {Object.keys(classrooms).length === 0 ? (
-            <p className="text-gray-500 text-sm">No classrooms yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {Object.entries(classrooms).map(([id, cfg]) => (
-                <ClassroomRow
-                  key={id}
-                  id={id}
-                  config={cfg}
-                  allStudents={students.map((s) => s.username)}
-                  globalMin={effectiveGlobalMin}
-                  globalMax={effectiveGlobalMax}
-                  onChange={(patch) => updateClassroom(id, patch)}
-                  onDelete={() => handleDeleteClassroom(id)}
-                  canDelete={!isTeacher}
-                />
-              ))}
-            </div>
-          )}
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSaveClassrooms}
-              disabled={classroomsSaving}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2 rounded-xl transition-colors disabled:opacity-50"
-            >
-              {classroomsSaving ? 'Saving...' : 'Save Classrooms'}
-            </button>
-            {classroomsSaved && <span className="text-green-400 text-sm">✓ Saved!</span>}
-          </div>
-        </section>
-
-        {/* Student Onboarding Settings */}
-        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <span>🎓</span> Student Onboarding &amp; Settings
-          </h2>
-          <p className="text-sm text-gray-400">
-            View and override individual student reading levels, content maturity, and blocked topics.
-            Per-student settings override classroom and global defaults.
-          </p>
-          {settingsMsg && (
-            <p className={`text-sm ${settingsMsg.includes('fail') || settingsMsg.includes('must') ? 'text-red-400' : 'text-green-400'}`}>
-              {settingsMsg.includes('fail') || settingsMsg.includes('must') ? settingsMsg : `✓ ${settingsMsg}`}
-            </p>
-          )}
-          {students.length === 0 ? (
-            <p className="text-gray-500 text-sm">No students enrolled yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {students.map((s) => (
-                <StudentSettingsRow
-                  key={s.username}
-                  student={s}
-                  saving={settingsSaving && editingSettings === s.username}
-                  globalMin={effectiveGlobalMin}
-                  globalMax={effectiveGlobalMax}
-                  onSave={(rl, reset, maturityLevel, blockedTopics) => {
-                    setEditingSettings(s.username);
-                    handleSaveStudentSettings(s.username, rl, reset, maturityLevel, blockedTopics);
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Analytics */}
-        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <span>📊</span> Student Analytics
-            </h2>
-            <button
-              onClick={loadAnalytics}
-              className="text-xs text-gray-400 hover:text-white border border-white/20 px-3 py-1 rounded-lg hover:bg-white/10 transition-colors"
-            >
-              Refresh
-            </button>
-          </div>
-          {analytics.length === 0 ? (
-            <p className="text-gray-500 text-sm">No student data yet.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-gray-400 border-b border-white/10">
-                    <th className="pb-2 pr-4">Student</th>
-                    <th className="pb-2 pr-4">Reading Level</th>
-                    <th className="pb-2 pr-4">Onboarded</th>
-                    <th className="pb-2 pr-4">Total Stories</th>
-                    <th className="pb-2 pr-4">Last 7 Days</th>
-                    <th className="pb-2 pr-4">Last 30 Days</th>
-                    <th className="pb-2">Last Active</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {analytics.map((a) => (
-                    <tr key={a.username} className="hover:bg-white/5 transition-colors">
-                      <td className="py-2 pr-4 font-medium">👤 {a.username}</td>
-                      <td className="py-2 pr-4">
-                        {a.readingLevel ? (
-                          <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full">
-                            {a.readingLevel}
-                          </span>
-                        ) : (
-                          <span className="text-gray-500 text-xs">—</span>
-                        )}
-                      </td>
-                      <td className="py-2 pr-4">
-                        {a.onboardingCompleted ? (
-                          <span className="text-green-400 text-xs">✓ Yes</span>
-                        ) : (
-                          <span className="text-yellow-400 text-xs">⏳ Pending</span>
-                        )}
-                      </td>
-                      <td className="py-2 pr-4 text-center font-mono">{a.totalStories}</td>
-                      <td className="py-2 pr-4 text-center font-mono">{a.storiesLast7Days}</td>
-                      <td className="py-2 pr-4 text-center font-mono">{a.storiesLast30Days}</td>
-                      <td className="py-2 text-gray-400 text-xs">
-                        {a.lastActiveAt
-                          ? new Date(a.lastActiveAt).toLocaleDateString()
-                          : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {/* Reading Recordings — admin only */}
-        {!isTeacher && (
-        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <span>🎙️</span> Reading Recordings ({recordings.length})
-            </h2>
-            <button
-              onClick={() => loadRecordings(stories)}
-              className="text-xs text-gray-400 hover:text-white border border-white/20 px-3 py-1 rounded-lg hover:bg-white/10 transition-colors"
-            >
-              Refresh
-            </button>
-          </div>
-          {recordings.length === 0 ? (
-            <p className="text-gray-500 text-sm">No recordings yet. Students record themselves reading in the book reader.</p>
-          ) : (
-            <div className="space-y-3">
-              {Object.entries(
-                recordings.reduce<Record<string, typeof recordings>>((acc, r) => {
-                  const key = r.username;
-                  if (!acc[key]) acc[key] = [];
-                  acc[key].push(r);
-                  return acc;
-                }, {}),
-              ).map(([username, recs]) => (
-                <div key={username} className="border border-white/10 rounded-2xl overflow-hidden">
-                  <div className="px-4 py-3 bg-white/5 text-sm font-medium flex items-center gap-2">
-                    👤 {username}
-                    <span className="text-xs text-gray-400">{recs.length} recording{recs.length !== 1 ? 's' : ''}</span>
-                  </div>
-                  <div className="px-4 pb-4 pt-3 space-y-2">
-                    {recs.map((rec) => {
-                      const story = stories.find((s) => s.id === rec.storyId);
-                      return (
-                        <div key={rec.id} className="flex flex-wrap items-center gap-3 bg-white/[0.04] rounded-xl px-4 py-2 border border-white/10">
-                          <div className="flex-shrink-0 text-xs text-gray-400 space-y-0.5">
-                            <p className="font-medium text-gray-200 truncate max-w-[200px]">
-                              {story?.title || story?.request.slice(0, 40) || rec.storyId.slice(0, 8)}
-                            </p>
-                            <p>Page {rec.pageNumber + 1} · {new Date(rec.createdAt).toLocaleDateString()}</p>
-                          </div>
-                          <audio
-                            src={`/api/stories/${rec.storyId}/recordings/${rec.id}`}
-                            controls
-                            className="flex-1 h-8 min-w-[180px]"
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-        )} {/* end !isTeacher Recordings */}
-
-        {/* All stories — admin only */}
-        {!isTeacher && (
-        <section>
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span>📚</span> All Generated Stories ({stories.length})
-          </h2>
-          {stories.length === 0 ? (
-            <div className="text-gray-500 text-center py-12 bg-white/5 rounded-3xl border border-white/10">
-              No stories yet. Students will generate them from their dashboard.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {stories.map((s) => (
-                <StoryCard
-                  key={s.id}
-                  story={s}
-                  showUser
-                  onUpdated={(updated) =>
-                    setStories((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </section>
-        )} {/* end !isTeacher All Stories */}
-
-        {/* ── Teacher Management — admin only ─────────────────────────────── */}
-        {!isTeacher && (
-        <section className="bg-white/5 rounded-3xl p-6 border border-white/10 space-y-6">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <span>👩‍🏫</span> Teacher Management
-          </h2>
-          <p className="text-sm text-gray-400">
-            Create teacher accounts and assign them to classrooms. Teachers can configure their
-            classroom settings, view and adjust per-student settings, and see analytics — but cannot
-            change global settings or manage other classrooms.
-          </p>
-
-          {/* Existing teachers */}
-          {teachers.length > 0 && (
-            <div>
-              <h3 className="text-sm font-medium text-gray-300 mb-2">Teachers ({teachers.length})</h3>
-              <ul className="space-y-3">
-                {teachers.map((t) => (
-                  <li key={t.username} className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium flex items-center gap-2">
-                        👩‍🏫 {t.username}
-                      </span>
-                      <button
-                        onClick={() => handleDeleteTeacher(t.username)}
-                        className="text-xs text-red-400 hover:text-red-300 border border-red-400/30 px-3 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-400 mb-1">Managed classrooms</p>
-                      {Object.keys(classrooms).length === 0 ? (
-                        <p className="text-xs text-gray-500">No classrooms created yet.</p>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {Object.entries(classrooms).map(([id, cfg]) => (
-                            <label key={id} className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
-                              <input
-                                type="checkbox"
-                                checked={t.managedClassroomIds.includes(id)}
-                                onChange={() => {
-                                  const next = t.managedClassroomIds.includes(id)
-                                    ? t.managedClassroomIds.filter((c) => c !== id)
-                                    : [...t.managedClassroomIds, id];
-                                  handleUpdateTeacherClassrooms(t.username, next);
-                                }}
-                                className="w-3.5 h-3.5 rounded accent-indigo-400"
+        {/* ── CONTENT TAB (admin only) ──────────────────────────────────── */}
+        {activeTab === 'content' && !isTeacher && (
+          <div className="space-y-5">
+            {/* Recordings */}
+            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                <h2 className="text-sm font-semibold flex items-center gap-2">
+                  <span>🎙️</span> Reading Recordings ({recordings.length})
+                </h2>
+                <button
+                  onClick={() => loadRecordings(stories)}
+                  className="text-xs text-gray-400 hover:text-white border border-white/20 px-2.5 py-1 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  Refresh
+                </button>
+              </div>
+              {recordings.length === 0 ? (
+                <p className="text-gray-500 text-sm p-4">No recordings yet. Students record themselves reading in the book reader.</p>
+              ) : (
+                <div className="divide-y divide-white/[0.04] max-h-80 overflow-y-auto">
+                  {Object.entries(
+                    recordings.reduce<Record<string, typeof recordings>>((acc, r) => {
+                      if (!acc[r.username]) acc[r.username] = [];
+                      acc[r.username].push(r);
+                      return acc;
+                    }, {}),
+                  ).map(([username, recs]) => (
+                    <div key={username}>
+                      <div className="px-4 py-2 bg-white/[0.03] text-xs font-medium text-gray-300 flex items-center gap-2">
+                        👤 {username}
+                        <span className="text-gray-500">{recs.length} recording{recs.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="px-4 pb-3 pt-2 space-y-1.5">
+                        {recs.map((rec) => {
+                          const story = stories.find((s) => s.id === rec.storyId);
+                          return (
+                            <div key={rec.id} className="flex flex-wrap items-center gap-3 bg-white/[0.03] rounded-xl px-3 py-1.5 border border-white/10">
+                              <div className="text-xs text-gray-400 space-y-0.5 flex-shrink-0">
+                                <p className="font-medium text-gray-200 truncate max-w-[180px]">
+                                  {story?.title || story?.request.slice(0, 35) || rec.storyId.slice(0, 8)}
+                                </p>
+                                <p>Page {rec.pageNumber + 1} · {new Date(rec.createdAt).toLocaleDateString()}</p>
+                              </div>
+                              <audio
+                                src={`/api/stories/${rec.storyId}/recordings/${rec.id}`}
+                                controls
+                                className="flex-1 h-7 min-w-[160px]"
                               />
-                              <span>{cfg.name}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Add teacher */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-300 mb-2">Add a teacher</h3>
-            <form onSubmit={handleAddTeacher} className="space-y-3">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                  type="text"
-                  value={newTeacherUsername}
-                  onChange={(e) => setNewTeacherUsername(e.target.value)}
-                  placeholder="Username"
-                  className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
-                />
-                <input
-                  type="password"
-                  value={newTeacherPassword}
-                  onChange={(e) => setNewTeacherPassword(e.target.value)}
-                  placeholder="Password"
-                  className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
-                />
-              </div>
-              {Object.keys(classrooms).length > 0 && (
-                <div>
-                  <p className="text-xs text-gray-400 mb-1">Assign to classrooms (optional, can be changed later)</p>
-                  <div className="flex flex-wrap gap-3">
-                    {Object.entries(classrooms).map(([id, cfg]) => (
-                      <label key={id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={newTeacherClassroomIds.includes(id)}
-                          onChange={() =>
-                            setNewTeacherClassroomIds((prev) =>
-                              prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
-                            )
-                          }
-                          className="w-4 h-4 rounded accent-indigo-400"
-                        />
-                        {cfg.name}
-                      </label>
-                    ))}
-                  </div>
+                  ))}
                 </div>
               )}
-              <button
-                type="submit"
-                className="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded-xl transition-colors whitespace-nowrap"
-              >
-                Add Teacher
-              </button>
-            </form>
-          </div>
+            </div>
 
-          {teacherError && <p className="text-red-400 text-sm">{teacherError}</p>}
-          {teacherSuccess && <p className="text-green-400 text-sm">✓ {teacherSuccess}</p>}
-        </section>
-        )} {/* end !isTeacher Teacher Management */}
+            {/* All stories */}
+            <div>
+              <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <span>📚</span> All Generated Stories ({stories.length})
+              </h2>
+              {stories.length === 0 ? (
+                <div className="text-gray-500 text-center py-12 bg-white/5 rounded-2xl border border-white/10">
+                  No stories yet. Students will generate them from their dashboard.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {stories.map((s) => (
+                    <StoryCard
+                      key={s.id}
+                      story={s}
+                      showUser
+                      onUpdated={(updated) =>
+                        setStories((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       </main>
     </div>
   );
 }
 
+// ── Stat card ─────────────────────────────────────────────────────────────────
+
+function StatCard({
+  emoji,
+  label,
+  value,
+  sub,
+  color,
+}: {
+  emoji: string;
+  label: string;
+  value: number | string;
+  sub: string;
+  color: 'blue' | 'green' | 'purple' | 'amber';
+}) {
+  const colorMap = {
+    blue: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+    green: 'bg-green-500/10 border-green-500/20 text-green-400',
+    purple: 'bg-purple-500/10 border-purple-500/20 text-purple-400',
+    amber: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+  };
+  return (
+    <div className={`rounded-2xl border p-4 ${colorMap[color]}`}>
+      <div className="flex items-center gap-2 mb-1">
+        <span>{emoji}</span>
+        <span className="text-xs text-gray-400">{label}</span>
+      </div>
+      <div className="text-2xl font-bold tracking-tight">{value}</div>
+      <div className="text-xs text-gray-500 mt-0.5">{sub}</div>
+    </div>
+  );
+}
+
 // ── Reusable sub-components ─────────────────────────────────────────────────
 
-/** Colour for each maturity level — used for the slider track and labels. */
 const MATURITY_LEVEL_COLORS: Record<number, string> = {
-  1: '#4ade80', // green
-  2: '#34d399', // emerald
-  3: '#60a5fa', // blue
-  4: '#818cf8', // indigo
-  5: '#c084fc', // purple
-  6: '#f87171', // red
+  1: '#4ade80',
+  2: '#34d399',
+  3: '#60a5fa',
+  4: '#818cf8',
+  5: '#c084fc',
+  6: '#f87171',
 };
 
-/** Renders a practical, colour-coded maturity level slider. */
 function MaturitySlider({
   value,
   min,
@@ -1282,14 +1413,12 @@ function MaturitySlider({
   const color = MATURITY_LEVEL_COLORS[value] ?? '#818cf8';
   const thumbPct = max > min ? ((value - min) / (max - min)) * 100 : 0;
 
-  // Gradient from the min-level colour to the max-level colour
   const gradientStops = ticks
     .map((n) => `${MATURITY_LEVEL_COLORS[n] ?? '#818cf8'} ${((n - min) / Math.max(max - min, 1)) * 100}%`)
     .join(', ');
 
   return (
     <div className="space-y-3">
-      {/* Level badge */}
       <div className="flex items-center gap-2 flex-wrap">
         <span
           className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full transition-colors duration-200"
@@ -1304,19 +1433,15 @@ function MaturitySlider({
         )}
       </div>
 
-      {/* Custom coloured track with native range for accessibility */}
       <div className="relative h-10 flex items-center">
-        {/* Track background gradient */}
         <div
           className="absolute inset-x-0 h-3 rounded-full pointer-events-none"
           style={{ background: `linear-gradient(to right, ${gradientStops})` }}
         />
-        {/* Dimmed overlay for the un-filled portion */}
         <div
           className="absolute right-0 h-3 rounded-r-full bg-black/50 pointer-events-none transition-all duration-150"
           style={{ left: `${thumbPct}%` }}
         />
-        {/* Native range — transparent so the custom track shows through */}
         <input
           type="range"
           min={min}
@@ -1327,7 +1452,6 @@ function MaturitySlider({
           className="absolute inset-x-0 w-full h-3 opacity-0 cursor-pointer z-10"
           style={{ height: '40px', top: 0 }}
         />
-        {/* Custom thumb */}
         <div
           className="absolute w-6 h-6 rounded-full bg-white shadow-lg pointer-events-none -translate-x-1/2 transition-all duration-150"
           style={{
@@ -1337,7 +1461,6 @@ function MaturitySlider({
         />
       </div>
 
-      {/* Tick labels — always visible */}
       <div className={`flex mt-1 ${ticks.length > 1 ? 'justify-between' : 'justify-start'}`}>
         {ticks.map((n) => {
           const isSelected = value === n;
@@ -1372,7 +1495,6 @@ function MaturitySlider({
   );
 }
 
-/** Min/max range picker using two sliders. */
 function MaturityRangePicker({
   min,
   max,
@@ -1422,7 +1544,6 @@ function MaturityRangePicker({
   );
 }
 
-/** Checkbox grid for predefined blocked topics + a custom freeform field. */
 function BlockedTopicsPicker({
   value,
   onChange,
@@ -1522,19 +1643,19 @@ function ClassroomRow({ config, allStudents, globalMin, globalMax, onChange, onD
           )}
           {config.blockedTopics && config.blockedTopics.length > 0 && (
             <span className="text-xs bg-red-500/20 text-red-300 border border-red-400/30 px-2 py-0.5 rounded-full">
-              🚫 {config.blockedTopics.length} topic{config.blockedTopics.length !== 1 ? 's' : ''} blocked
+              🚫 {config.blockedTopics.length} blocked
             </span>
           )}
         </span>
         <div className="flex items-center gap-2">
           {canDelete && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="text-xs text-red-400 hover:text-red-300 border border-red-400/30 px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
-          >
-            Delete
-          </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="text-xs text-red-400 hover:text-red-300 border border-red-400/30 px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
+            >
+              Delete
+            </button>
           )}
           <span className="text-gray-400 text-sm">{expanded ? '▲' : '▼'}</span>
         </div>
@@ -1542,7 +1663,6 @@ function ClassroomRow({ config, allStudents, globalMin, globalMax, onChange, onD
 
       {expanded && (
         <div className="px-4 pb-5 space-y-5 border-t border-white/10 pt-4">
-          {/* Members */}
           <div>
             <h4 className="text-xs font-medium text-gray-400 mb-2">Members</h4>
             {allStudents.length === 0 ? (
@@ -1564,12 +1684,8 @@ function ClassroomRow({ config, allStudents, globalMin, globalMax, onChange, onD
             )}
           </div>
 
-          {/* Maturity level range for this classroom */}
           <div>
-            <h4 className="text-xs font-medium text-gray-400 mb-2">Allowed maturity range for this classroom</h4>
-            <p className="text-xs text-gray-500 mb-2">
-              Overrides the global range for members of this classroom (cannot exceed global bounds).
-            </p>
+            <h4 className="text-xs font-medium text-gray-400 mb-2">Allowed maturity range</h4>
             <MaturityRangePicker
               min={effectiveMin}
               max={effectiveMax}
@@ -1581,7 +1697,6 @@ function ClassroomRow({ config, allStudents, globalMin, globalMax, onChange, onD
             />
           </div>
 
-          {/* Default maturity level */}
           <div>
             <h4 className="text-xs font-medium text-gray-400 mb-2">Default maturity level</h4>
             <MaturitySlider
@@ -1592,12 +1707,8 @@ function ClassroomRow({ config, allStudents, globalMin, globalMax, onChange, onD
             />
           </div>
 
-          {/* Blocked topics */}
           <div>
-            <h4 className="text-xs font-medium text-gray-400 mb-2">Blocked topics for this classroom</h4>
-            <p className="text-xs text-gray-500 mb-2">
-              Merged with globally blocked topics. Per-student blocked topics are also merged in.
-            </p>
+            <h4 className="text-xs font-medium text-gray-400 mb-2">Blocked topics</h4>
             <BlockedTopicsPicker
               value={config.blockedTopics ?? []}
               onChange={(topics) => onChange({ blockedTopics: topics })}
@@ -1636,66 +1747,66 @@ function StudentSettingsRow({ student, saving, globalMin, globalMax, onSave }: S
   const maturityInfo = MATURITY_LEVEL_INFO[maturityLevel] ?? MATURITY_LEVEL_INFO[MATURITY_LEVEL_DEFAULT];
 
   return (
-    <div className="border border-white/10 rounded-2xl overflow-hidden">
+    <div>
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors text-left"
+        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-white/5 transition-colors text-left"
       >
-        <span className="flex items-center gap-2 text-sm font-medium flex-wrap">
-          👤 {student.username}
+        <span className="flex items-center gap-2 text-xs font-medium flex-wrap">
+          <span className="text-gray-500">👤</span>
+          <span className="text-gray-200">{student.username}</span>
           {student.readingLevel && (
-            <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-400/30 px-1.5 py-0.5 rounded-full leading-none">
               {student.readingLevel}
             </span>
           )}
-          <span className="text-xs bg-purple-500/20 text-purple-300 border border-purple-400/30 px-2 py-0.5 rounded-full">
+          <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-400/30 px-1.5 py-0.5 rounded-full leading-none">
             {maturityInfo.emoji} {maturityInfo.label}
           </span>
           {blockedTopics.length > 0 && (
-            <span className="text-xs bg-red-500/20 text-red-300 border border-red-400/30 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] bg-red-500/20 text-red-300 border border-red-400/30 px-1.5 py-0.5 rounded-full leading-none">
               🚫 {blockedTopics.length}
             </span>
           )}
           {student.onboardingCompleted ? (
-            <span className="text-xs text-green-400">✓ Onboarded</span>
+            <span className="text-[10px] text-green-400">✓</span>
           ) : (
-            <span className="text-xs text-yellow-400">⏳ Not yet onboarded</span>
+            <span className="text-[10px] text-yellow-400">⏳</span>
           )}
         </span>
-        <span className="text-gray-400 text-sm">{expanded ? '▲' : '▼'}</span>
+        <span className="text-gray-500 text-xs">{expanded ? '▲' : '▼'}</span>
       </button>
 
       {expanded && (
-        <div className="px-4 pb-5 space-y-5 border-t border-white/10 pt-4">
-          <div className="flex flex-wrap items-start gap-6">
+        <div className="px-4 pb-4 pt-1 space-y-4 border-t border-white/[0.06]">
+          <div className="flex flex-wrap items-start gap-4">
             <div>
               <label className="block text-xs text-gray-400 mb-1">Override reading level</label>
               <select
                 value={readingLevel}
                 onChange={(e) => setReadingLevel(e.target.value as ReadingLevel | '')}
-                className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-sm"
+                className="bg-white/10 border border-white/20 rounded-xl px-3 py-1.5 text-xs"
               >
-                <option value="">(keep current / student-chosen)</option>
+                <option value="">(keep current)</option>
                 {READING_LEVEL_VALUES.map((lvl) => (
                   <option key={lvl} value={lvl}>{lvl}</option>
                 ))}
               </select>
             </div>
-            <label className="flex items-center gap-2 text-sm cursor-pointer select-none mt-5">
+            <label className="flex items-center gap-2 text-xs cursor-pointer select-none mt-5">
               <input
                 type="checkbox"
                 checked={resetOnboarding}
                 onChange={(e) => setResetOnboarding(e.target.checked)}
-                className="w-4 h-4 rounded accent-yellow-400"
+                className="w-3.5 h-3.5 rounded accent-yellow-400"
               />
-              Reset onboarding (student sees wizard again)
+              Reset onboarding
             </label>
           </div>
 
-          {/* Content maturity slider */}
           <div>
-            <label className="block text-xs text-gray-400 mb-3">Content maturity</label>
+            <label className="block text-xs text-gray-400 mb-2">Content maturity</label>
             <MaturitySlider
               value={maturityLevel}
               min={globalMin}
@@ -1704,11 +1815,9 @@ function StudentSettingsRow({ student, saving, globalMin, globalMax, onSave }: S
             />
           </div>
 
-          {/* Per-student blocked topics */}
           <div>
             <label className="block text-xs text-gray-400 mb-2">
-              Additional blocked topics for this student
-              <span className="ml-1 text-gray-500">(merged with classroom and global blocks)</span>
+              Additional blocked topics <span className="text-gray-600">(merged with classroom &amp; global)</span>
             </label>
             <BlockedTopicsPicker value={blockedTopics} onChange={setBlockedTopics} />
           </div>
@@ -1716,7 +1825,7 @@ function StudentSettingsRow({ student, saving, globalMin, globalMax, onSave }: S
           <button
             onClick={() => onSave(readingLevel || null, resetOnboarding, maturityLevel, blockedTopics)}
             disabled={saving}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2 rounded-xl transition-colors disabled:opacity-50 text-sm"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-1.5 rounded-xl transition-colors disabled:opacity-50 text-xs"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
