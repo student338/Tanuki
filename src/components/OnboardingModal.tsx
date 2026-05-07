@@ -5,8 +5,10 @@ import { ReadingLevel } from '@/lib/reading-levels';
 
 const GENRES = [
   'Fantasy', 'Adventure', 'Mystery', 'Sci-Fi', 'Romance', 'Horror', 'Comedy', 'Historical',
-  'Thriller', 'Non-Fiction', 'Fairy Tale', 'Mythology', 'Sports', 'Animals & Nature',
-  'Science', 'Drama', 'Superhero', 'Poetry', 'Fable', 'Other',
+  'Thriller', 'Fairy Tale', 'Mythology', 'Sports', 'Animals & Nature',
+  'Science', 'Drama', 'Superhero', 'Poetry', 'Fable',
+  'Dystopian', 'Western', 'Crime', 'Steampunk', 'Pirate', 'Magic Realism',
+  'Slice of Life', 'Graphic Novel', 'Cooking', 'Other',
 ];
 
 const READING_LEVEL_ICONS: Record<ReadingLevel, string> = {
@@ -226,11 +228,22 @@ export default function OnboardingModal({
     initialPreferences?.coWriterMode ?? false,
   );
   const [saving, setSaving] = useState(false);
+  const [customGenreInput, setCustomGenreInput] = useState('');
+  const [showCustomGenreInput, setShowCustomGenreInput] = useState(false);
 
   function toggleGenre(genre: string) {
     setFavoriteGenres((prev) =>
       prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre],
     );
+  }
+
+  function addCustomGenre() {
+    const trimmed = customGenreInput.trim();
+    if (trimmed && !favoriteGenres.includes(trimmed)) {
+      setFavoriteGenres((prev) => [...prev, trimmed]);
+    }
+    setCustomGenreInput('');
+    setShowCustomGenreInput(false);
   }
 
   async function handleFinish() {
@@ -342,6 +355,53 @@ export default function OnboardingModal({
                     {g}
                   </button>
                 ))}
+                {/* Custom genres already added */}
+                {favoriteGenres.filter((g) => !GENRES.includes(g)).map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => toggleGenre(g)}
+                    className="px-3 py-1.5 rounded-full text-sm font-medium transition-all border bg-purple-600 text-white border-purple-600 shadow-md"
+                  >
+                    {g} ✕
+                  </button>
+                ))}
+                {/* Add custom genre button */}
+                {showCustomGenreInput ? (
+                  <div className="flex items-center gap-1 w-full mt-1">
+                    <input
+                      type="text"
+                      value={customGenreInput}
+                      onChange={(e) => setCustomGenreInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomGenre(); } if (e.key === 'Escape') { setShowCustomGenreInput(false); setCustomGenreInput(''); } }}
+                      placeholder="Type a genre…"
+                      autoFocus
+                      className="flex-1 bg-white/10 border border-white/30 rounded-full px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 placeholder-white/40"
+                    />
+                    <button
+                      type="button"
+                      onClick={addCustomGenre}
+                      className="px-3 py-1.5 rounded-full text-sm font-medium bg-purple-600 text-white border border-purple-600 hover:bg-purple-700 transition-all"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowCustomGenreInput(false); setCustomGenreInput(''); }}
+                      className="px-3 py-1.5 rounded-full text-sm font-medium bg-white/10 border border-white/30 hover:bg-white/20 transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomGenreInput(true)}
+                    className="px-3 py-1.5 rounded-full text-sm font-medium transition-all border bg-white/10 border-white/30 hover:bg-white/20 border-dashed"
+                  >
+                    + Custom
+                  </button>
+                )}
               </div>
             </div>
 

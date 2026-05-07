@@ -12,8 +12,10 @@ import ThemeSelector, { Theme, VALID_THEMES } from '@/components/ThemeSelector';
 
 const GENRES = [
   'Fantasy', 'Adventure', 'Mystery', 'Sci-Fi', 'Romance', 'Horror', 'Comedy', 'Historical',
-  'Thriller', 'Non-Fiction', 'Fairy Tale', 'Mythology', 'Sports', 'Animals & Nature',
-  'Science', 'Drama', 'Superhero', 'Poetry', 'Fable', 'Other',
+  'Thriller', 'Fairy Tale', 'Mythology', 'Sports', 'Animals & Nature',
+  'Science', 'Drama', 'Superhero', 'Poetry', 'Fable',
+  'Dystopian', 'Western', 'Crime', 'Steampunk', 'Pirate', 'Magic Realism',
+  'Slice of Life', 'Graphic Novel', 'Cooking', 'Other',
 ];
 
 interface StoryOptions {
@@ -54,6 +56,10 @@ export default function StudentPage() {
 
   // Info Mode toggle
   const [infoMode, setInfoMode] = useState(false);
+
+  // Custom genre input (shown when "Custom..." is selected)
+  const [customGenreInput, setCustomGenreInput] = useState('');
+  const [isCustomGenre, setIsCustomGenre] = useState(false);
 
   // Co-writer mode (loaded from student config)
   const [coWriterMode, setCoWriterMode] = useState(false);
@@ -430,14 +436,36 @@ export default function StudentPage() {
                     Genre {lockBadge('genre')}
                   </label>
                   <select
-                    value={options.genre}
-                    onChange={(e) => setOpt('genre', e.target.value)}
+                    value={isCustomGenre ? '__custom__' : options.genre}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        setIsCustomGenre(true);
+                        setOpt('genre', customGenreInput);
+                      } else {
+                        setIsCustomGenre(false);
+                        setCustomGenreInput('');
+                        setOpt('genre', e.target.value);
+                      }
+                    }}
                     disabled={isLocked('genre')}
                     className="w-full bg-black/5 border border-current/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50"
                   >
                     <option value="">Any</option>
                     {GENRES.map((g) => <option key={g} value={g}>{g}</option>)}
+                    <option value="__custom__">Custom…</option>
                   </select>
+                  {isCustomGenre && (
+                    <input
+                      type="text"
+                      value={customGenreInput}
+                      onChange={(e) => {
+                        setCustomGenreInput(e.target.value);
+                        setOpt('genre', e.target.value);
+                      }}
+                      placeholder="Type your genre…"
+                      className="mt-2 w-full bg-black/5 border border-current/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 placeholder-current/30"
+                    />
+                  )}
                 </div>
                 )}
 
