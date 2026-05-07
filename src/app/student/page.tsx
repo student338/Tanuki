@@ -440,7 +440,6 @@ export default function StudentPage() {
                     onChange={(e) => {
                       if (e.target.value === '__custom__') {
                         setIsCustomGenre(true);
-                        setOpt('genre', customGenreInput);
                       } else {
                         setIsCustomGenre(false);
                         setCustomGenreInput('');

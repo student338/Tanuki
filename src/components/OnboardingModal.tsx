@@ -246,6 +246,16 @@ export default function OnboardingModal({
     setShowCustomGenreInput(false);
   }
 
+  function handleCustomGenreKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addCustomGenre();
+    } else if (e.key === 'Escape') {
+      setShowCustomGenreInput(false);
+      setCustomGenreInput('');
+    }
+  }
+
   async function handleFinish() {
     if (!readingLevel) return;
     setSaving(true);
@@ -373,7 +383,7 @@ export default function OnboardingModal({
                       type="text"
                       value={customGenreInput}
                       onChange={(e) => setCustomGenreInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomGenre(); } if (e.key === 'Escape') { setShowCustomGenreInput(false); setCustomGenreInput(''); } }}
+                      onKeyDown={handleCustomGenreKeyDown}
                       placeholder="Type a genre…"
                       autoFocus
                       className="flex-1 bg-white/10 border border-white/30 rounded-full px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 placeholder-white/40"
