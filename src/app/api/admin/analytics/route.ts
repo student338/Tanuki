@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getStoredUsers, getStories, getManagedClassroomIds, getConfig } from '@/lib/storage';
 
+const MAX_FAVORITE_GENRES = 5;
+const TOP_GENRES_LIMIT = 8;
+
 export interface StudentAnalytics {
   username: string;
   readingLevel?: string;
@@ -100,7 +103,7 @@ export async function GET() {
 
     // Also include user's self-reported favorite genres
     const favGenres: string[] = profileUser?.preferences?.favoriteGenres ?? [];
-    const allFavGenres = Array.from(new Set([...topGenres, ...favGenres])).slice(0, 5);
+    const allFavGenres = Array.from(new Set([...topGenres, ...favGenres])).slice(0, MAX_FAVORITE_GENRES);
 
     return {
       username,
@@ -154,7 +157,7 @@ export async function GET() {
 
   const topGenres = Object.entries(globalGenreCount)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
+    .slice(0, TOP_GENRES_LIMIT)
     .map(([genre, count]) => ({ genre, count }));
 
   const summary: AnalyticsSummary = {
