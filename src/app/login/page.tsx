@@ -44,14 +44,26 @@ export default function LoginPage() {
       }
       const data = await res.json();
       navigated = true;
-      // Use a full page navigation so that Safari on iOS/iPadOS reliably
-      // includes the newly-set session cookie in all subsequent requests.
-      // A 200 ms pause lets WebKit commit the Set-Cookie header from the login
-      // fetch response to the cookie jar before the new page's requests fire.
-      // Without this delay, the very first API call on the destination page
-      // can arrive before the cookie is flushed, triggering a 401 redirect
-      // straight back to the login screen on iOS Safari 16+.
-      await new Promise((r) => setTimeout(r, 200));
+      // Safari on iOS/iPadOS can delay writing a cookie that was set in the
+      // response to a fetch() POST request.  Polling /api/auth/me until it
+      // returns 200 ensures the session cookie is fully committed to the
+      // browser's jar before we navigate, so the destination page's very first
+      // API call already carries the cookie and avoids a spurious 401 redirect.
+      const POLL_INTERVAL_MS = 150;
+      const MAX_POLL_ATTEMPTS = 10;
+      let cookieReady = false;
+      for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+        try {
+          const check = await fetch('/api/auth/me');
+          if (check.ok) { cookieReady = true; break; }
+        } catch { /* ignore network errors during polling */ }
+      }
+      if (!cookieReady) {
+        // Cookie still not visible after max wait — navigate anyway; the
+        // destination page's own retry logic will handle any lingering 401.
+        console.warn('Session cookie not confirmed after polling; navigating anyway.');
+      }
       if (data.user.role === 'admin') window.location.replace('/admin');
       else window.location.replace('/student');
     } catch {

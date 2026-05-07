@@ -153,12 +153,15 @@ export default function AdminPage() {
     if (cfgRes.status === 403 || cfgRes.status === 401) {
       // On iOS/iPadOS the httpOnly session cookie written by the login fetch
       // may not be flushed to the cookie jar before the first in-page requests
-      // fire after window.location.replace. Retry once after a brief delay.
-      await new Promise((r) => setTimeout(r, 500));
-      [cfgRes, meRes] = await Promise.all([
-        fetch('/api/admin/config'),
-        fetch('/api/auth/me'),
-      ]);
+      // fire after window.location.replace. Retry with increasing delays.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await new Promise((r) => setTimeout(r, 300));
+        [cfgRes, meRes] = await Promise.all([
+          fetch('/api/admin/config'),
+          fetch('/api/auth/me'),
+        ]);
+        if (cfgRes.status !== 403 && cfgRes.status !== 401) break;
+      }
       if (cfgRes.status === 403 || cfgRes.status === 401) { router.push('/login'); return; }
     }
     const cfg = await cfgRes.json();
