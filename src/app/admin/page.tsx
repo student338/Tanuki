@@ -978,6 +978,7 @@ export default function AdminPage() {
                     globalMax={effectiveGlobalMax}
                     onChange={(patch) => updateClassroom(id, patch)}
                     onDelete={() => handleDeleteClassroom(id)}
+                    canDelete={true}
                   />
                 ))}
               </div>

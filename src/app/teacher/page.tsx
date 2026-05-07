@@ -380,7 +380,6 @@ export default function TeacherPage() {
                     globalMin={MATURITY_LEVEL_MIN}
                     globalMax={MATURITY_LEVEL_MAX}
                     onChange={(patch) => updateClassroom(id, patch)}
-                    onDelete={() => {}}
                     canDelete={false}
                   />
                 ))}
@@ -662,7 +661,7 @@ interface ClassroomRowProps {
   globalMin: number;
   globalMax: number;
   onChange: (patch: Partial<ClassroomConfig>) => void;
-  onDelete: () => void;
+  onDelete?: () => void;
   canDelete?: boolean;
 }
 
@@ -705,7 +704,7 @@ function ClassroomRow({ config, allStudents, globalMin, globalMax, onChange, onD
           {canDelete && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
               className="text-xs text-red-400 hover:text-red-300 border border-red-400/30 px-2 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
             >
               Delete
