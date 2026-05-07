@@ -49,12 +49,20 @@ export default function LoginPage() {
       // returns 200 ensures the session cookie is fully committed to the
       // browser's jar before we navigate, so the destination page's very first
       // API call already carries the cookie and avoids a spurious 401 redirect.
-      for (let attempt = 0; attempt < 10; attempt++) {
-        await new Promise((r) => setTimeout(r, attempt === 0 ? 50 : 150));
+      const POLL_INTERVAL_MS = 150;
+      const MAX_POLL_ATTEMPTS = 10;
+      let cookieReady = false;
+      for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
         try {
           const check = await fetch('/api/auth/me');
-          if (check.ok) break;
+          if (check.ok) { cookieReady = true; break; }
         } catch { /* ignore network errors during polling */ }
+      }
+      if (!cookieReady) {
+        // Cookie still not visible after max wait — navigate anyway; the
+        // destination page's own retry logic will handle any lingering 401.
+        console.warn('Session cookie not confirmed after polling; navigating anyway.');
       }
       if (data.user.role === 'admin') window.location.replace('/admin');
       else window.location.replace('/student');
