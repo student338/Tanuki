@@ -16,7 +16,8 @@ export default function LoginPage() {
     fetch('/api/auth/me')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data?.user?.role === 'admin' || data?.user?.role === 'teacher') window.location.replace('/admin');
+        if (data?.user?.role === 'admin') window.location.replace('/admin');
+        else if (data?.user?.role === 'teacher') window.location.replace('/teacher');
         else if (data?.user?.role === 'student') window.location.replace('/student');
       })
       .catch(() => {});
@@ -64,7 +65,8 @@ export default function LoginPage() {
         // destination page's own retry logic will handle any lingering 401.
         console.warn('Session cookie not confirmed after polling; navigating anyway.');
       }
-      if (data.user.role === 'admin' || data.user.role === 'teacher') window.location.replace('/admin');
+      if (data.user.role === 'admin') window.location.replace('/admin');
+      else if (data.user.role === 'teacher') window.location.replace('/teacher');
       else window.location.replace('/student');
     } catch {
       setError('Login failed');

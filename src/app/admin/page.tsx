@@ -45,8 +45,6 @@ interface StudentInfo {
 
 export default function AdminPage() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<{ username: string; role: string } | null>(null);
-  const isTeacher = currentUser?.role === 'teacher';
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
 
   const [systemPrompt, setSystemPrompt] = useState('');
@@ -165,7 +163,7 @@ export default function AdminPage() {
     const cfg = await cfgRes.json();
     const meData = meRes.ok ? await meRes.json() : null;
     const userRole = meData?.user?.role as string | undefined;
-    setCurrentUser(meData?.user ?? null);
+    if (userRole === 'teacher') { router.push('/teacher'); return; }
     setSystemPrompt(cfg.systemPrompt ?? '');
     setApiBaseUrl(cfg.apiBaseUrl ?? '');
     setModel(cfg.model ?? '');
@@ -178,26 +176,24 @@ export default function AdminPage() {
     setGlobalSafety(cfg.globalSafety ?? {});
     setClassrooms(cfg.classrooms ?? {});
 
-    if (userRole !== 'teacher') {
-      const [storyRes, teachersRes] = await Promise.all([
-        fetch('/api/stories'),
-        fetch('/api/admin/teachers'),
-      ]);
-      const storiesData = storyRes.ok ? await storyRes.json() : [];
-      const storyList = Array.isArray(storiesData) ? storiesData : [];
-      setStories(storyList);
-      if (teachersRes.ok) {
-        const data = await teachersRes.json();
-        setTeachers(Array.isArray(data) ? data : []);
-      }
-      if (storyList.length > 0) {
-        const results = await Promise.all(
-          storyList.map((s: Story) =>
-            fetch(`/api/stories/${s.id}/recordings`).then((r) => r.ok ? r.json() : []),
-          ),
-        );
-        setRecordings(results.flat());
-      }
+    const [storyRes, teachersRes] = await Promise.all([
+      fetch('/api/stories'),
+      fetch('/api/admin/teachers'),
+    ]);
+    const storiesData = storyRes.ok ? await storyRes.json() : [];
+    const storyList = Array.isArray(storiesData) ? storiesData : [];
+    setStories(storyList);
+    if (teachersRes.ok) {
+      const data = await teachersRes.json();
+      setTeachers(Array.isArray(data) ? data : []);
+    }
+    if (storyList.length > 0) {
+      const results = await Promise.all(
+        storyList.map((s: Story) =>
+          fetch(`/api/stories/${s.id}/recordings`).then((r) => r.ok ? r.json() : []),
+        ),
+      );
+      setRecordings(results.flat());
     }
   }, [router]);
 
@@ -256,7 +252,7 @@ export default function AdminPage() {
     await fetch('/api/admin/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(isTeacher ? { classrooms } : { systemPrompt, classrooms }),
+      body: JSON.stringify({ systemPrompt, classrooms }),
     });
     setClassroomsSaving(false);
     setClassroomsSaved(true);
@@ -459,21 +455,15 @@ export default function AdminPage() {
   const effectiveGlobalMin = globalSafety.maturityLevelRange?.min ?? MATURITY_LEVEL_MIN;
   const effectiveGlobalMax = globalSafety.maturityLevelRange?.max ?? MATURITY_LEVEL_MAX;
 
-  // Tabs available per role
-  const adminTabs: { id: AdminTab; label: string; emoji: string }[] = isTeacher
-    ? [
-        { id: 'overview', label: 'Overview', emoji: '📊' },
-        { id: 'students', label: 'Students', emoji: '👥' },
-        { id: 'classrooms', label: 'Classrooms', emoji: '🏫' },
-      ]
-    : [
-        { id: 'overview', label: 'Overview', emoji: '📊' },
-        { id: 'students', label: 'Students', emoji: '👥' },
-        { id: 'classrooms', label: 'Classrooms', emoji: '🏫' },
-        { id: 'safety', label: 'Safety', emoji: '🛡️' },
-        { id: 'config', label: 'Config', emoji: '🔌' },
-        { id: 'content', label: 'Content', emoji: '📚' },
-      ];
+  // Tabs available for admin
+  const adminTabs: { id: AdminTab; label: string; emoji: string }[] = [
+    { id: 'overview', label: 'Overview', emoji: '📊' },
+    { id: 'students', label: 'Students', emoji: '👥' },
+    { id: 'classrooms', label: 'Classrooms', emoji: '🏫' },
+    { id: 'safety', label: 'Safety', emoji: '🛡️' },
+    { id: 'config', label: 'Config', emoji: '🔌' },
+    { id: 'content', label: 'Content', emoji: '📚' },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-zinc-900 text-white">
@@ -481,7 +471,7 @@ export default function AdminPage() {
       <header className="border-b border-white/10 px-6 py-3 flex justify-between items-center backdrop-blur-sm bg-white/5">
         <div className="flex items-center gap-3">
           <span className="text-2xl">🦝</span>
-          <h1 className="text-lg font-bold">Tanuki — {isTeacher ? 'Teacher Dashboard' : 'Admin'}</h1>
+          <h1 className="text-lg font-bold">Tanuki — Admin</h1>
         </div>
         <button
           onClick={handleLogout}
@@ -730,195 +720,193 @@ export default function AdminPage() {
         {activeTab === 'students' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Left: Management */}
-            {!isTeacher && (
-              <div className="space-y-4">
-                <div className="bg-white/5 rounded-2xl border border-white/10 p-4 space-y-4">
-                  <h2 className="text-sm font-semibold flex items-center gap-2">
-                    <span>👥</span> Manage Students
-                  </h2>
+            <div className="space-y-4">
+              <div className="bg-white/5 rounded-2xl border border-white/10 p-4 space-y-4">
+                <h2 className="text-sm font-semibold flex items-center gap-2">
+                  <span>👥</span> Manage Students
+                </h2>
 
-                  {/* Student list */}
-                  {students.length > 0 && (
-                    <div>
-                      <p className="text-xs text-gray-400 mb-2">Enrolled ({students.length})</p>
-                      <ul className="space-y-1 max-h-48 overflow-y-auto pr-1">
-                        {students.map((s) => (
-                          <li key={s.username} className="flex items-center justify-between bg-white/5 rounded-xl px-3 py-1.5 border border-white/10">
-                            <span className="text-xs flex items-center gap-1.5">
-                              👤 {s.username}
-                              {s.readingLevel && (
-                                <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-400/30 px-1.5 py-0.5 rounded-full leading-none">
-                                  {s.readingLevel}
-                                </span>
-                              )}
-                            </span>
-                            <button
-                              onClick={() => handleDeleteStudent(s.username)}
-                              className="text-[10px] text-red-400 hover:text-red-300 border border-red-400/30 px-2 py-0.5 rounded-lg hover:bg-red-500/10 transition-colors"
-                            >
-                              Remove
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Add student form */}
+                {/* Student list */}
+                {students.length > 0 && (
                   <div>
-                    <p className="text-xs text-gray-400 mb-2">Add student</p>
-                    <form onSubmit={handleAddStudent} className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newStudentUsername}
-                        onChange={(e) => setNewStudentUsername(e.target.value)}
-                        placeholder="Username"
-                        className="flex-1 bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
-                      />
-                      <input
-                        type="password"
-                        value={newStudentPassword}
-                        onChange={(e) => setNewStudentPassword(e.target.value)}
-                        placeholder="Password"
-                        className="flex-1 bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
-                      />
-                      <button
-                        type="submit"
-                        className="bg-green-600 hover:bg-green-700 text-white font-medium px-3 py-1.5 rounded-xl transition-colors text-xs whitespace-nowrap"
-                      >
-                        Add
-                      </button>
-                    </form>
-                  </div>
-
-                  {/* CSV import */}
-                  <div>
-                    <p className="text-xs text-gray-400 mb-1">Import CSV <span className="text-gray-600">(username,password,reading_level)</span></p>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <input
-                        ref={csvFileRef}
-                        type="file"
-                        accept=".csv,text/csv,text/plain"
-                        onChange={handleCsvFileChange}
-                        className="text-xs text-gray-400 file:mr-2 file:py-0.5 file:px-2 file:rounded-lg file:border file:border-white/20 file:bg-white/5 file:text-gray-300 file:text-xs hover:file:bg-white/10"
-                      />
-                    </div>
-                    <textarea
-                      value={csvText}
-                      onChange={(e) => setCsvText(e.target.value)}
-                      rows={3}
-                      placeholder={"alice,pass123,Elementary\nbob,pass456,Middle School"}
-                      className="w-full bg-white/5 border border-white/20 rounded-xl p-2.5 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500 font-mono"
-                    />
-                    <button
-                      onClick={handleCsvImport}
-                      disabled={csvImporting || !csvText.trim()}
-                      className="mt-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-1.5 rounded-xl transition-colors disabled:opacity-50 text-xs"
-                    >
-                      {csvImporting ? 'Importing…' : 'Import CSV'}
-                    </button>
-                  </div>
-
-                  {studentError && <p className="text-red-400 text-xs">{studentError}</p>}
-                  {studentSuccess && <p className="text-green-400 text-xs">✓ {studentSuccess}</p>}
-                </div>
-
-                {/* Teacher management (admin only) */}
-                <div className="bg-white/5 rounded-2xl border border-white/10 p-4 space-y-4">
-                  <h2 className="text-sm font-semibold flex items-center gap-2">
-                    <span>👩‍🏫</span> Teachers
-                  </h2>
-
-                  {teachers.length > 0 && (
-                    <ul className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                      {teachers.map((t) => (
-                        <li key={t.username} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium">👩‍🏫 {t.username}</span>
-                            <button
-                              onClick={() => handleDeleteTeacher(t.username)}
-                              className="text-[10px] text-red-400 hover:text-red-300 border border-red-400/30 px-2 py-0.5 rounded-lg hover:bg-red-500/10 transition-colors"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                          {Object.keys(classrooms).length > 0 && (
-                            <div className="flex flex-wrap gap-1.5">
-                              {Object.entries(classrooms).map(([id, cfg]) => (
-                                <label key={id} className="flex items-center gap-1 text-[10px] cursor-pointer select-none text-gray-300">
-                                  <input
-                                    type="checkbox"
-                                    checked={t.managedClassroomIds.includes(id)}
-                                    onChange={() => {
-                                      const next = t.managedClassroomIds.includes(id)
-                                        ? t.managedClassroomIds.filter((c) => c !== id)
-                                        : [...t.managedClassroomIds, id];
-                                      handleUpdateTeacherClassrooms(t.username, next);
-                                    }}
-                                    className="w-3 h-3 rounded accent-indigo-400"
-                                  />
-                                  {cfg.name}
-                                </label>
-                              ))}
-                            </div>
-                          )}
+                    <p className="text-xs text-gray-400 mb-2">Enrolled ({students.length})</p>
+                    <ul className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                      {students.map((s) => (
+                        <li key={s.username} className="flex items-center justify-between bg-white/5 rounded-xl px-3 py-1.5 border border-white/10">
+                          <span className="text-xs flex items-center gap-1.5">
+                            👤 {s.username}
+                            {s.readingLevel && (
+                              <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-400/30 px-1.5 py-0.5 rounded-full leading-none">
+                                {s.readingLevel}
+                              </span>
+                            )}
+                          </span>
+                          <button
+                            onClick={() => handleDeleteStudent(s.username)}
+                            className="text-[10px] text-red-400 hover:text-red-300 border border-red-400/30 px-2 py-0.5 rounded-lg hover:bg-red-500/10 transition-colors"
+                          >
+                            Remove
+                          </button>
                         </li>
                       ))}
                     </ul>
-                  )}
+                  </div>
+                )}
 
-                  <form onSubmit={handleAddTeacher} className="space-y-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newTeacherUsername}
-                        onChange={(e) => setNewTeacherUsername(e.target.value)}
-                        placeholder="Username"
-                        className="flex-1 bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
-                      />
-                      <input
-                        type="password"
-                        value={newTeacherPassword}
-                        onChange={(e) => setNewTeacherPassword(e.target.value)}
-                        placeholder="Password"
-                        className="flex-1 bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
-                      />
-                      <button
-                        type="submit"
-                        className="bg-green-600 hover:bg-green-700 text-white font-medium px-3 py-1.5 rounded-xl transition-colors text-xs whitespace-nowrap"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    {Object.keys(classrooms).length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {Object.entries(classrooms).map(([id, cfg]) => (
-                          <label key={id} className="flex items-center gap-1.5 text-xs cursor-pointer select-none text-gray-300">
-                            <input
-                              type="checkbox"
-                              checked={newTeacherClassroomIds.includes(id)}
-                              onChange={() =>
-                                setNewTeacherClassroomIds((prev) =>
-                                  prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
-                                )
-                              }
-                              className="w-3.5 h-3.5 rounded accent-indigo-400"
-                            />
-                            {cfg.name}
-                          </label>
-                        ))}
-                      </div>
-                    )}
+                {/* Add student form */}
+                <div>
+                  <p className="text-xs text-gray-400 mb-2">Add student</p>
+                  <form onSubmit={handleAddStudent} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newStudentUsername}
+                      onChange={(e) => setNewStudentUsername(e.target.value)}
+                      placeholder="Username"
+                      className="flex-1 bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                    />
+                    <input
+                      type="password"
+                      value={newStudentPassword}
+                      onChange={(e) => setNewStudentPassword(e.target.value)}
+                      placeholder="Password"
+                      className="flex-1 bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                    />
+                    <button
+                      type="submit"
+                      className="bg-green-600 hover:bg-green-700 text-white font-medium px-3 py-1.5 rounded-xl transition-colors text-xs whitespace-nowrap"
+                    >
+                      Add
+                    </button>
                   </form>
-
-                  {teacherError && <p className="text-red-400 text-xs">{teacherError}</p>}
-                  {teacherSuccess && <p className="text-green-400 text-xs">✓ {teacherSuccess}</p>}
                 </div>
+
+                {/* CSV import */}
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Import CSV <span className="text-gray-600">(username,password,reading_level)</span></p>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <input
+                      ref={csvFileRef}
+                      type="file"
+                      accept=".csv,text/csv,text/plain"
+                      onChange={handleCsvFileChange}
+                      className="text-xs text-gray-400 file:mr-2 file:py-0.5 file:px-2 file:rounded-lg file:border file:border-white/20 file:bg-white/5 file:text-gray-300 file:text-xs hover:file:bg-white/10"
+                    />
+                  </div>
+                  <textarea
+                    value={csvText}
+                    onChange={(e) => setCsvText(e.target.value)}
+                    rows={3}
+                    placeholder={"alice,pass123,Elementary\nbob,pass456,Middle School"}
+                    className="w-full bg-white/5 border border-white/20 rounded-xl p-2.5 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500 font-mono"
+                  />
+                  <button
+                    onClick={handleCsvImport}
+                    disabled={csvImporting || !csvText.trim()}
+                    className="mt-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-1.5 rounded-xl transition-colors disabled:opacity-50 text-xs"
+                  >
+                    {csvImporting ? 'Importing…' : 'Import CSV'}
+                  </button>
+                </div>
+
+                {studentError && <p className="text-red-400 text-xs">{studentError}</p>}
+                {studentSuccess && <p className="text-green-400 text-xs">✓ {studentSuccess}</p>}
               </div>
-            )}
+
+              {/* Teacher management (admin only) */}
+              <div className="bg-white/5 rounded-2xl border border-white/10 p-4 space-y-4">
+                <h2 className="text-sm font-semibold flex items-center gap-2">
+                  <span>👩‍🏫</span> Teachers
+                </h2>
+
+                {teachers.length > 0 && (
+                  <ul className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {teachers.map((t) => (
+                      <li key={t.username} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium">👩‍🏫 {t.username}</span>
+                          <button
+                            onClick={() => handleDeleteTeacher(t.username)}
+                            className="text-[10px] text-red-400 hover:text-red-300 border border-red-400/30 px-2 py-0.5 rounded-lg hover:bg-red-500/10 transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        {Object.keys(classrooms).length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {Object.entries(classrooms).map(([id, cfg]) => (
+                              <label key={id} className="flex items-center gap-1 text-[10px] cursor-pointer select-none text-gray-300">
+                                <input
+                                  type="checkbox"
+                                  checked={t.managedClassroomIds.includes(id)}
+                                  onChange={() => {
+                                    const next = t.managedClassroomIds.includes(id)
+                                      ? t.managedClassroomIds.filter((c) => c !== id)
+                                      : [...t.managedClassroomIds, id];
+                                    handleUpdateTeacherClassrooms(t.username, next);
+                                  }}
+                                  className="w-3 h-3 rounded accent-indigo-400"
+                                />
+                                {cfg.name}
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <form onSubmit={handleAddTeacher} className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newTeacherUsername}
+                      onChange={(e) => setNewTeacherUsername(e.target.value)}
+                      placeholder="Username"
+                      className="flex-1 bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                    />
+                    <input
+                      type="password"
+                      value={newTeacherPassword}
+                      onChange={(e) => setNewTeacherPassword(e.target.value)}
+                      placeholder="Password"
+                      className="flex-1 bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+                    />
+                    <button
+                      type="submit"
+                      className="bg-green-600 hover:bg-green-700 text-white font-medium px-3 py-1.5 rounded-xl transition-colors text-xs whitespace-nowrap"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {Object.keys(classrooms).length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(classrooms).map(([id, cfg]) => (
+                        <label key={id} className="flex items-center gap-1.5 text-xs cursor-pointer select-none text-gray-300">
+                          <input
+                            type="checkbox"
+                            checked={newTeacherClassroomIds.includes(id)}
+                            onChange={() =>
+                              setNewTeacherClassroomIds((prev) =>
+                                prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
+                              )
+                            }
+                            className="w-3.5 h-3.5 rounded accent-indigo-400"
+                          />
+                          {cfg.name}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </form>
+
+                {teacherError && <p className="text-red-400 text-xs">{teacherError}</p>}
+                {teacherSuccess && <p className="text-green-400 text-xs">✓ {teacherSuccess}</p>}
+              </div>
+            </div>
 
             {/* Right: Student onboarding settings */}
-            <div className={`bg-white/5 rounded-2xl border border-white/10 overflow-hidden ${isTeacher ? 'lg:col-span-2' : ''}`}>
+            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
               <div className="px-4 py-3 border-b border-white/10">
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                   <span>🎓</span> Student Settings
@@ -956,25 +944,23 @@ export default function AdminPage() {
         {/* ── CLASSROOMS TAB ─────────────────────────────────────────────── */}
         {activeTab === 'classrooms' && (
           <div className="space-y-4">
-            {!isTeacher && (
-              <div className="flex gap-3">
-                <input
-                  type="text"
-                  value={newClassroomName}
-                  onChange={(e) => setNewClassroomName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddClassroom(); } }}
-                  placeholder="New classroom name"
-                  className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
-                />
-                <button
-                  onClick={handleAddClassroom}
-                  disabled={!newClassroomName.trim()}
-                  className="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded-xl transition-colors disabled:opacity-50 whitespace-nowrap"
-                >
-                  Add Classroom
-                </button>
-              </div>
-            )}
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={newClassroomName}
+                onChange={(e) => setNewClassroomName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddClassroom(); } }}
+                placeholder="New classroom name"
+                className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 text-gray-100 placeholder-gray-500"
+              />
+              <button
+                onClick={handleAddClassroom}
+                disabled={!newClassroomName.trim()}
+                className="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded-xl transition-colors disabled:opacity-50 whitespace-nowrap"
+              >
+                Add Classroom
+              </button>
+            </div>
 
             {Object.keys(classrooms).length === 0 ? (
               <div className="bg-white/5 rounded-2xl border border-white/10 p-8 text-center text-gray-500 text-sm">
@@ -992,7 +978,6 @@ export default function AdminPage() {
                     globalMax={effectiveGlobalMax}
                     onChange={(patch) => updateClassroom(id, patch)}
                     onDelete={() => handleDeleteClassroom(id)}
-                    canDelete={!isTeacher}
                   />
                 ))}
               </div>
@@ -1011,8 +996,8 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── SAFETY TAB (admin only) ───────────────────────────────────── */}
-        {activeTab === 'safety' && !isTeacher && (
+        {/* ── SAFETY TAB ───────────────────────────────────────────────── */}
+        {activeTab === 'safety' && (
           <div className="max-w-2xl space-y-5">
             <div className="bg-white/5 rounded-2xl border border-white/10 p-5 space-y-5">
               <h2 className="text-sm font-semibold flex items-center gap-2">
@@ -1066,7 +1051,7 @@ export default function AdminPage() {
         )}
 
         {/* ── CONFIG TAB (admin only) ───────────────────────────────────── */}
-        {activeTab === 'config' && !isTeacher && (
+        {activeTab === 'config' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* API Configuration */}
             <div className="bg-white/5 rounded-2xl border border-white/10 p-5 space-y-4">
@@ -1264,7 +1249,7 @@ export default function AdminPage() {
         )}
 
         {/* ── CONTENT TAB (admin only) ──────────────────────────────────── */}
-        {activeTab === 'content' && !isTeacher && (
+        {activeTab === 'content' && (
           <div className="space-y-5">
             {/* Recordings */}
             <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
