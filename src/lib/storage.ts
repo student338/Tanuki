@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { ReadingLevel } from './reading-levels';
-import { READING_LEVEL_VALUES } from './reading-levels';
+import { READING_LEVEL_VALUES, razKidsToReadingLevel } from './reading-levels';
 import { MATURITY_LEVEL_DEFAULT } from './safety';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -434,16 +434,22 @@ export function importStudentsFromCsv(csv: string): number {
     if (!username || !password) continue;
 
     const rawLevel = readingLevelIdx >= 0 ? parts[readingLevelIdx]?.trim() : undefined;
-    const readingLevel = READING_LEVEL_VALUES.find(
-      (v) => v.toLowerCase() === rawLevel?.toLowerCase(),
-    );
+    const readingLevel: ReadingLevel | undefined =
+      READING_LEVEL_VALUES.find((v) => v.toLowerCase() === rawLevel?.toLowerCase()) ??
+      (rawLevel ? razKidsToReadingLevel(rawLevel) : undefined);
 
     const idx = users.findIndex((u) => u.username === username);
-    const entry: StoredUser = { username, password, role: 'student', ...(readingLevel ? { readingLevel } : {}) };
+
     if (idx !== -1) {
-      users[idx] = entry;
+      if (users[idx].role !== 'student') {
+        // Never overwrite an existing teacher or admin account with student role.
+        continue;
+      }
+      // Update the existing student entry.
+      users[idx] = { username, password, role: 'student', ...(readingLevel ? { readingLevel } : {}) };
     } else {
-      users.push(entry);
+      // New user — add as student.
+      users.push({ username, password, role: 'student', ...(readingLevel ? { readingLevel } : {}) });
     }
     count++;
   }
