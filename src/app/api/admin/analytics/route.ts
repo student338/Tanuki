@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getStoredUsers, getStories, getManagedClassroomIds, getConfig } from '@/lib/storage';
 
+const MAX_FAVORITE_GENRES = 5;
+const TOP_GENRES_LIMIT = 8;
+
 export interface StudentAnalytics {
   username: string;
   readingLevel?: string;
@@ -10,6 +13,25 @@ export interface StudentAnalytics {
   storiesLast7Days: number;
   storiesLast30Days: number;
   lastActiveAt: string | null;
+  favoriteGenres?: string[];
+  genreBreakdown?: Record<string, number>;
+}
+
+export interface AnalyticsSummary {
+  totalStudents: number;
+  onboardedStudents: number;
+  activeStudents7Days: number;
+  activeStudents30Days: number;
+  totalStories: number;
+  storiesLast7Days: number;
+  storiesLast30Days: number;
+  readingLevelDistribution: Record<string, number>;
+  topGenres: { genre: string; count: number }[];
+}
+
+export interface AnalyticsResponse {
+  students: StudentAnalytics[];
+  summary: AnalyticsSummary;
 }
 
 export async function GET() {
@@ -39,9 +61,17 @@ export async function GET() {
 
   // Build a map: username → list of story dates
   const storyMap: Record<string, string[]> = {};
+  const genreMap: Record<string, Record<string, number>> = {};
   for (const story of stories) {
     if (!storyMap[story.username]) storyMap[story.username] = [];
     storyMap[story.username].push(story.createdAt);
+
+    // Track genres per user
+    const genre = story.options?.genre;
+    if (genre) {
+      if (!genreMap[story.username]) genreMap[story.username] = {};
+      genreMap[story.username][genre] = (genreMap[story.username][genre] ?? 0) + 1;
+    }
   }
 
   // Collect all known usernames (file-based students + anyone who has stories)
@@ -65,6 +95,16 @@ export async function GET() {
     const storiesLast7Days = dateTimes.filter((t) => nowMs - t < ms7).length;
     const storiesLast30Days = dateTimes.filter((t) => nowMs - t < ms30).length;
 
+    const genreBreakdown = genreMap[username] ?? {};
+    const topGenres = Object.entries(genreBreakdown)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([genre]) => genre);
+
+    // Also include user's self-reported favorite genres
+    const favGenres: string[] = profileUser?.preferences?.favoriteGenres ?? [];
+    const allFavGenres = Array.from(new Set([...topGenres, ...favGenres])).slice(0, MAX_FAVORITE_GENRES);
+
     return {
       username,
       readingLevel: profileUser?.readingLevel,
@@ -73,6 +113,8 @@ export async function GET() {
       storiesLast7Days,
       storiesLast30Days,
       lastActiveAt: sorted.length > 0 ? sorted[sorted.length - 1] : null,
+      favoriteGenres: allFavGenres.length > 0 ? allFavGenres : undefined,
+      genreBreakdown: Object.keys(genreBreakdown).length > 0 ? genreBreakdown : undefined,
     };
   });
 
@@ -86,5 +128,49 @@ export async function GET() {
     return a.username.localeCompare(b.username);
   });
 
-  return NextResponse.json(analytics);
+  // Build aggregate summary
+  const readingLevelDistribution: Record<string, number> = {};
+  const globalGenreCount: Record<string, number> = {};
+  let totalStoriesAll = 0;
+  let storiesLast7All = 0;
+  let storiesLast30All = 0;
+  let activeStudents7 = 0;
+  let activeStudents30 = 0;
+  let onboardedCount = 0;
+
+  for (const a of analytics) {
+    totalStoriesAll += a.totalStories;
+    storiesLast7All += a.storiesLast7Days;
+    storiesLast30All += a.storiesLast30Days;
+    if (a.storiesLast7Days > 0) activeStudents7++;
+    if (a.storiesLast30Days > 0) activeStudents30++;
+    if (a.onboardingCompleted) onboardedCount++;
+    if (a.readingLevel) {
+      readingLevelDistribution[a.readingLevel] = (readingLevelDistribution[a.readingLevel] ?? 0) + 1;
+    }
+    if (a.genreBreakdown) {
+      for (const [genre, count] of Object.entries(a.genreBreakdown)) {
+        globalGenreCount[genre] = (globalGenreCount[genre] ?? 0) + count;
+      }
+    }
+  }
+
+  const topGenres = Object.entries(globalGenreCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, TOP_GENRES_LIMIT)
+    .map(([genre, count]) => ({ genre, count }));
+
+  const summary: AnalyticsSummary = {
+    totalStudents: analytics.length,
+    onboardedStudents: onboardedCount,
+    activeStudents7Days: activeStudents7,
+    activeStudents30Days: activeStudents30,
+    totalStories: totalStoriesAll,
+    storiesLast7Days: storiesLast7All,
+    storiesLast30Days: storiesLast30All,
+    readingLevelDistribution,
+    topGenres,
+  };
+
+  return NextResponse.json({ students: analytics, summary } satisfies AnalyticsResponse);
 }
