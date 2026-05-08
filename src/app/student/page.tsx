@@ -15,7 +15,7 @@ const GENRES = [
   'Thriller', 'Fairy Tale', 'Mythology', 'Sports', 'Animals & Nature',
   'Science', 'Drama', 'Superhero', 'Poetry', 'Fable',
   'Dystopian', 'Western', 'Crime', 'Steampunk', 'Pirate', 'Magic Realism',
-  'Slice of Life', 'Graphic Novel', 'Cooking', 'Other',
+  'Slice of Life', 'Graphic Novel', 'Other',
 ];
 
 interface StoryOptions {
@@ -80,6 +80,21 @@ export default function StudentPage() {
   const [onboardingData, setOnboardingData] = useState<OnboardingData | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
+  const shouldRedirectToLogin = useCallback(async () => {
+    // Safari on iOS/iPadOS can surface transient 401s right after login while
+    // the cookie jar settles; confirm auth state before redirecting.
+    for (let attempt = 0; attempt < 12; attempt++) {
+      await new Promise((r) => setTimeout(r, 250));
+      try {
+        const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (meRes.ok) return false;
+      } catch {
+        // ignore transient network failures while checking
+      }
+    }
+    return true;
+  }, []);
+
   const loadStories = useCallback(async () => {
     let res = await fetch('/api/stories');
     if (res.status === 401) {
@@ -92,11 +107,14 @@ export default function StudentPage() {
         if (res.status !== 401) break;
       }
     }
-    if (res.status === 401) { router.push('/login'); return; }
+    if (res.status === 401) {
+      if (await shouldRedirectToLogin()) router.push('/login');
+      return;
+    }
     if (!res.ok) { setError('Failed to load stories. Please refresh the page.'); return; }
     const data = await res.json();
     setStories(Array.isArray(data) ? data : []);
-  }, [router]);
+  }, [router, shouldRedirectToLogin]);
 
   const loadStudentConfig = useCallback(async () => {
     const res = await fetch('/api/student/config');

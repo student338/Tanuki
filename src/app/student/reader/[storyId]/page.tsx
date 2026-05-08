@@ -93,6 +93,21 @@ export default function ReaderPage() {
 
   const isChapterBased = (s: Story) => Array.isArray(s.chapters);
 
+  const shouldRedirectToLogin = useCallback(async () => {
+    // Safari on iOS/iPadOS can surface transient 401s right after login while
+    // the cookie jar settles; confirm auth state before redirecting.
+    for (let attempt = 0; attempt < 12; attempt++) {
+      await new Promise((r) => setTimeout(r, 250));
+      try {
+        const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
+        if (meRes.ok) return false;
+      } catch {
+        // ignore transient network failures while checking
+      }
+    }
+    return true;
+  }, []);
+
   const loadStory = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -103,7 +118,10 @@ export default function ReaderPage() {
       // fire after window.location.replace. Retry once after a brief delay.
       await new Promise((r) => setTimeout(r, 500));
       res = await fetch(`/api/stories/${storyId}`);
-      if (res.status === 401) { router.push('/login'); return; }
+      if (res.status === 401) {
+        if (await shouldRedirectToLogin()) router.push('/login');
+        return;
+      }
     }
     if (!res.ok) { setError('Story not found.'); setLoading(false); return; }
     const data: Story = await res.json();
@@ -114,7 +132,7 @@ export default function ReaderPage() {
       setPages(paginateStory(data.story));
     }
     setLoading(false);
-  }, [storyId, router]);
+  }, [storyId, router, shouldRedirectToLogin]);
 
   const loadRecordings = useCallback(async () => {
     const res = await fetch(`/api/stories/${storyId}/recordings`);
