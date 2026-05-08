@@ -8,12 +8,14 @@ export async function confirmUnauthenticated(options?: {
   // Safari on iOS/iPadOS can surface transient 401s right after login while
   // the cookie jar settles; confirm auth state before redirecting.
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    await new Promise((r) => setTimeout(r, intervalMs));
     try {
       const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
       if (meRes.ok) return false;
     } catch {
       // ignore transient network failures while checking
+    }
+    if (attempt < maxAttempts - 1) {
+      await new Promise((r) => setTimeout(r, intervalMs));
     }
   }
 
