@@ -61,7 +61,7 @@ export default function LoginPage() {
         } catch { /* ignore network errors during polling */ }
       }
       if (!cookieReady) {
-        setError('Login succeeded, but session is still initializing. Please try again.');
+        setError('Login succeeded, but session setup timed out. Please log in again.');
         return;
       }
       if (data.user.role === 'admin') window.location.replace('/admin');
