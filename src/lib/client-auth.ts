@@ -1,9 +1,12 @@
+const AUTH_CONFIRM_INTERVAL_MS = 250;
+const AUTH_CONFIRM_MAX_ATTEMPTS = 24; // 6s total wait
+
 export async function confirmUnauthenticated(options?: {
   maxAttempts?: number;
   intervalMs?: number;
 }): Promise<boolean> {
-  const maxAttempts = options?.maxAttempts ?? 12;
-  const intervalMs = options?.intervalMs ?? 250;
+  const maxAttempts = options?.maxAttempts ?? AUTH_CONFIRM_MAX_ATTEMPTS;
+  const intervalMs = options?.intervalMs ?? AUTH_CONFIRM_INTERVAL_MS;
 
   // Safari on iOS/iPadOS can surface transient 401s right after login while
   // the cookie jar settles; confirm auth state before redirecting.
