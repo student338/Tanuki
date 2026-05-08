@@ -62,7 +62,7 @@ export default function LoginPage() {
         } catch { /* ignore network errors during polling */ }
       }
       if (!cookieReady) {
-        setError('Session setup timed out. Please try logging in again.');
+        setError('Login verification failed. Please try again.');
         return;
       }
       if (data.user.role === 'admin') window.location.replace('/admin');
