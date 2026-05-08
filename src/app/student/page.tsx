@@ -9,13 +9,14 @@ import { Story, LockableField, StoryPlan } from '@/lib/storage';
 import { ReadingLevel } from '@/lib/reading-levels';
 import { MATURITY_LEVEL_INFO, MATURITY_LEVEL_DEFAULT, MATURITY_LEVEL_MAX } from '@/lib/safety';
 import ThemeSelector, { Theme, VALID_THEMES } from '@/components/ThemeSelector';
+import { confirmUnauthenticated } from '@/lib/client-auth';
 
 const GENRES = [
   'Fantasy', 'Adventure', 'Mystery', 'Sci-Fi', 'Romance', 'Horror', 'Comedy', 'Historical',
   'Thriller', 'Fairy Tale', 'Mythology', 'Sports', 'Animals & Nature',
   'Science', 'Drama', 'Superhero', 'Poetry', 'Fable',
   'Dystopian', 'Western', 'Crime', 'Steampunk', 'Pirate', 'Magic Realism',
-  'Slice of Life', 'Graphic Novel', 'Cooking', 'Other',
+  'Slice of Life', 'Graphic Novel', 'Other',
 ];
 
 interface StoryOptions {
@@ -92,7 +93,10 @@ export default function StudentPage() {
         if (res.status !== 401) break;
       }
     }
-    if (res.status === 401) { router.push('/login'); return; }
+    if (res.status === 401) {
+      if (await confirmUnauthenticated()) router.push('/login');
+      return;
+    }
     if (!res.ok) { setError('Failed to load stories. Please refresh the page.'); return; }
     const data = await res.json();
     setStories(Array.isArray(data) ? data : []);

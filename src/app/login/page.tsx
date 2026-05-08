@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react';
 
+const SESSION_POLL_INTERVAL_MS = 250;
+const SESSION_MAX_POLL_ATTEMPTS = 24; // 6s total wait
+
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -50,20 +53,17 @@ export default function LoginPage() {
       // returns 200 ensures the session cookie is fully committed to the
       // browser's jar before we navigate, so the destination page's very first
       // API call already carries the cookie and avoids a spurious 401 redirect.
-      const POLL_INTERVAL_MS = 150;
-      const MAX_POLL_ATTEMPTS = 10;
       let cookieReady = false;
-      for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      for (let attempt = 0; attempt < SESSION_MAX_POLL_ATTEMPTS; attempt++) {
+        await new Promise((r) => setTimeout(r, SESSION_POLL_INTERVAL_MS));
         try {
-          const check = await fetch('/api/auth/me');
+          const check = await fetch('/api/auth/me', { cache: 'no-store' });
           if (check.ok) { cookieReady = true; break; }
         } catch { /* ignore network errors during polling */ }
       }
       if (!cookieReady) {
-        // Cookie still not visible after max wait — navigate anyway; the
-        // destination page's own retry logic will handle any lingering 401.
-        console.warn('Session cookie not confirmed after polling; navigating anyway.');
+        setError('Unable to verify login session. Please try logging in again.');
+        return;
       }
       if (data.user.role === 'admin') window.location.replace('/admin');
       else if (data.user.role === 'teacher') window.location.replace('/teacher');

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import ThemeWrapper from '@/components/ThemeWrapper';
 import ThemeSelector, { Theme, VALID_THEMES } from '@/components/ThemeSelector';
 import { Story, StoryPlan } from '@/lib/storage';
+import { confirmUnauthenticated } from '@/lib/client-auth';
 
 interface Recording {
   id: string;
@@ -103,7 +104,10 @@ export default function ReaderPage() {
       // fire after window.location.replace. Retry once after a brief delay.
       await new Promise((r) => setTimeout(r, 500));
       res = await fetch(`/api/stories/${storyId}`);
-      if (res.status === 401) { router.push('/login'); return; }
+      if (res.status === 401) {
+        if (await confirmUnauthenticated()) router.push('/login');
+        return;
+      }
     }
     if (!res.ok) { setError('Story not found.'); setLoading(false); return; }
     const data: Story = await res.json();
