@@ -62,7 +62,7 @@ export default function LoginPage() {
         } catch { /* ignore network errors during polling */ }
       }
       if (!cookieReady) {
-        setError('Login verification failed. Please try again.');
+        setError('Unable to verify login session. Please try logging in again.');
         return;
       }
       if (data.user.role === 'admin') window.location.replace('/admin');
