@@ -296,6 +296,7 @@ export default function StudentPage() {
     });
     // Apply theme to localStorage; ThemeWrapper listens for storage events
     if (data.preferences.theme) {
+      setThemeState(data.preferences.theme as Theme);
       localStorage.setItem('tanuki_theme', data.preferences.theme);
       window.dispatchEvent(new StorageEvent('storage', {
         key: 'tanuki_theme',
@@ -321,7 +322,7 @@ export default function StudentPage() {
         <OnboardingModal
           allowedReadingLevels={onboardingData.allowedReadingLevels}
           initialReadingLevel={onboardingData.readingLevel}
-          initialPreferences={{ ...onboardingData.preferences, coWriterMode }}
+          initialPreferences={{ ...onboardingData.preferences, theme, coWriterMode }}
           dismissable={onboardingData.onboardingCompleted}
           onComplete={handleOnboardingComplete}
           onDismiss={() => setShowOnboarding(false)}

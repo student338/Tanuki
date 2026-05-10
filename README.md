@@ -14,8 +14,8 @@ An AI-powered story generation web app for students.
     <td align="center"><strong>Story Reader</strong><br/><img src="public/screenshots/story-reader.png" alt="Story reader" width="480"/></td>
   </tr>
   <tr>
-    <td align="center"><strong>Admin — Settings &amp; Students</strong><br/><img src="public/screenshots/admin-settings.png" alt="Admin dashboard settings" width="480"/></td>
-    <td align="center"><strong>Admin — Analytics</strong><br/><img src="public/screenshots/admin-analytics.png" alt="Admin analytics" width="480"/></td>
+    <td align="center"><strong>Admin — Overview</strong><br/><img src="public/screenshots/admin-analytics.png" alt="Admin overview and analytics" width="480"/></td>
+    <td align="center"><strong>Admin — Students</strong><br/><img src="public/screenshots/admin-students.png" alt="Admin student management" width="480"/></td>
   </tr>
 </table>
 
