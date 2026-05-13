@@ -338,13 +338,18 @@ export default function AdminPage() {
     }));
   }
 
-  const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME ?? 'admin';
+  const adminUsernames = new Set(
+    (process.env.NEXT_PUBLIC_ADMIN_USERNAME ?? 'admin')
+      .split(',')
+      .map((u) => u.trim())
+      .filter(Boolean),
+  );
   const studentUsernames = Array.from(
     new Set([
       ...students.map((s) => s.username),
       ...stories.map((s) => s.username),
     ]),
-  ).filter((u) => u !== adminUsername);
+  ).filter((u) => !adminUsernames.has(u));
 
   async function handleAddStudent(e: React.FormEvent) {
     e.preventDefault();
