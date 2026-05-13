@@ -23,10 +23,10 @@ const ENV_USERS: Record<string, { password: string; role: 'admin' | 'student' }>
   const defaultAdminPassword = adminPasswords[0] ?? 'admin123';
 
   const usernamesToUse = adminUsernames.length > 0 ? adminUsernames : ['admin'];
-  for (let i = 0; i < usernamesToUse.length; i++) {
-    const username = usernamesToUse[i];
+  for (let adminIndex = 0; adminIndex < usernamesToUse.length; adminIndex++) {
+    const username = usernamesToUse[adminIndex];
     users[username] = {
-      password: adminPasswords[i] ?? defaultAdminPassword,
+      password: adminPasswords[adminIndex] ?? defaultAdminPassword,
       role: 'admin',
     };
   }
