@@ -9,26 +9,38 @@ export interface User {
 
 const COOKIE_NAME = 'tanuki_session';
 
+function parseCsvEnv(value: string | undefined): string[] {
+  if (!value) return [];
+  return value.split(',').map((v) => v.trim()).filter(Boolean);
+}
+
 // Env-based users (admin + optional legacy student) — always present
-const ENV_USERS: Record<string, { password: string; role: 'admin' | 'student' }> = {
-  [process.env.ADMIN_USERNAME ?? 'admin']: {
-    password: process.env.ADMIN_PASSWORD ?? 'admin123',
-    role: 'admin',
-  },
-  ...(process.env.STUDENT_USERNAME
-    ? {
-        [process.env.STUDENT_USERNAME]: {
-          password: process.env.STUDENT_PASSWORD ?? 'student123',
-          role: 'student',
-        },
-      }
-    : {
-        student: {
-          password: process.env.STUDENT_PASSWORD ?? 'student123',
-          role: 'student',
-        },
-      }),
-};
+const ENV_USERS: Record<string, { password: string; role: 'admin' | 'student' }> = (() => {
+  const users: Record<string, { password: string; role: 'admin' | 'student' }> = {};
+
+  const adminUsernames = parseCsvEnv(process.env.ADMIN_USERNAME);
+  const adminPasswords = parseCsvEnv(process.env.ADMIN_PASSWORD);
+  const defaultAdminPassword = adminPasswords[0] ?? 'admin123';
+
+  const usernamesToUse = adminUsernames.length > 0 ? adminUsernames : ['admin'];
+  for (let i = 0; i < usernamesToUse.length; i++) {
+    const username = usernamesToUse[i];
+    users[username] = {
+      password: adminPasswords[i] ?? defaultAdminPassword,
+      role: 'admin',
+    };
+  }
+
+  const studentUsername = (process.env.STUDENT_USERNAME || 'student').trim();
+  if (!users[studentUsername]) {
+    users[studentUsername] = {
+      password: process.env.STUDENT_PASSWORD ?? 'student123',
+      role: 'student',
+    };
+  }
+
+  return users;
+})();
 
 function getSecret(): string {
   const secret = process.env.SESSION_SECRET;

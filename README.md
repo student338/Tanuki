@@ -87,6 +87,7 @@ update.bat
    - Set `OPENAI_API_KEY` to your API key (optional — the app runs in mock mode without one).
    - Set `SESSION_SECRET` to a long random string.
    - Optionally override `ADMIN_USERNAME` / `ADMIN_PASSWORD` (defaults: `admin` / `admin123`).
+     You can also configure multiple admins with comma-separated values (e.g. `ADMIN_USERNAME=admin,principal` and `ADMIN_PASSWORD=admin123,principal123`).
    - Optionally set `OPENAI_BASE_URL` for a custom OpenAI-compatible endpoint (can also be changed later in the Admin UI).
 
 3. Run the development server:
@@ -105,7 +106,7 @@ update.bat
 | Admin   | `admin`   | `admin123`   |
 | Student | `student` | `student123` |
 
-> Default credentials can be overridden with the `ADMIN_USERNAME` / `ADMIN_PASSWORD` environment variables. Student accounts are managed through the Admin UI or imported via CSV.
+> Default credentials can be overridden with the `ADMIN_USERNAME` / `ADMIN_PASSWORD` environment variables. Multiple admin accounts are supported using comma-separated values. Student accounts are managed through the Admin UI or imported via CSV.
 
 ---
 
@@ -131,5 +132,5 @@ update.bat
 
 ### Technical
 - **Storage**: File-based JSON in `/data` (gitignored) — no database required.
-- **Auth**: Cookie-based sessions; no external auth library. Admin credentials come from environment variables; student credentials are stored in `data/users.json`.
+- **Auth**: Cookie-based sessions; no external auth library. One or more admin credentials can come from environment variables; student credentials are stored in `data/users.json`.
 - **AI backends**: OpenAI API, any OpenAI-compatible endpoint (Ollama, LM Studio, Together AI, Groq, vLLM, llama.cpp), or on-device HuggingFace transformers model. Falls back to mock mode when no key or model is configured.
