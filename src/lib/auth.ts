@@ -37,6 +37,8 @@ const ENV_USERS: Record<string, { password: string; role: 'admin' | 'student' }>
       password: process.env.STUDENT_PASSWORD ?? 'student123',
       role: 'student',
     };
+  } else {
+    console.warn(`STUDENT_USERNAME "${studentUsername}" conflicts with an admin username; skipping env student account.`);
   }
 
   return users;
