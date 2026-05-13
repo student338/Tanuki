@@ -23,10 +23,16 @@ const ENV_USERS: Record<string, { password: string; role: 'admin' | 'student' }>
   const defaultAdminPassword = adminPasswords[0] ?? 'admin123';
 
   const usernamesToUse = adminUsernames.length > 0 ? adminUsernames : ['admin'];
-  for (let adminIndex = 0; adminIndex < usernamesToUse.length; adminIndex++) {
-    const username = usernamesToUse[adminIndex];
+  for (let idx = 0; idx < usernamesToUse.length; idx++) {
+    const username = usernamesToUse[idx];
+    const assignedPassword = adminPasswords[idx] ?? defaultAdminPassword;
+    if (usernamesToUse.length > 1 && idx >= adminPasswords.length) {
+      console.warn(
+        `ADMIN_PASSWORD missing for admin "${username}". Reusing the first admin password; configure explicit per-admin passwords for better security.`,
+      );
+    }
     users[username] = {
-      password: adminPasswords[adminIndex] ?? defaultAdminPassword,
+      password: assignedPassword,
       role: 'admin',
     };
   }
