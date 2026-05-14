@@ -2,60 +2,6 @@
 
 An AI-powered story generation web app for students.
 
-## Screenshots
-
-<table>
-  <tr>
-    <td align="center"><strong>Login</strong><br/><img src="public/screenshots/login.png" alt="Login screen" width="480"/></td>
-    <td align="center"><strong>Story Generation</strong><br/><img src="public/screenshots/student-story-request.png" alt="Student story generation form" width="480"/></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Story Dashboard</strong><br/><img src="public/screenshots/student-with-story.png" alt="Student dashboard with story history" width="480"/></td>
-    <td align="center"><strong>Story Reader</strong><br/><img src="public/screenshots/story-reader.png" alt="Story reader" width="480"/></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Admin — Overview</strong><br/><img src="public/screenshots/admin-analytics.png" alt="Admin overview and analytics" width="480"/></td>
-    <td align="center"><strong>Admin — Students</strong><br/><img src="public/screenshots/admin-students.png" alt="Admin student management" width="480"/></td>
-  </tr>
-</table>
-
-### Themes
-
-Students can choose from 20 built-in themes at any time via the ⚙️ settings button.
-
-<table>
-  <tr>
-    <td align="center"><strong>☀️ Light</strong><br/><img src="public/screenshots/themes/theme-light.png" alt="Light theme" width="240"/></td>
-    <td align="center"><strong>🌙 Dark</strong><br/><img src="public/screenshots/themes/theme-dark.png" alt="Dark theme" width="240"/></td>
-    <td align="center"><strong>📜 Sepia</strong><br/><img src="public/screenshots/themes/theme-sepia.png" alt="Sepia theme" width="240"/></td>
-    <td align="center"><strong>🔮 Orbs / White</strong><br/><img src="public/screenshots/themes/theme-orbs-white.png" alt="Orbs on White theme" width="240"/></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>✨ Orbs / Black</strong><br/><img src="public/screenshots/themes/theme-orbs-black.png" alt="Orbs on Black theme" width="240"/></td>
-    <td align="center"><strong>🌿 Forest</strong><br/><img src="public/screenshots/themes/theme-forest.png" alt="Forest theme" width="240"/></td>
-    <td align="center"><strong>🌊 Ocean</strong><br/><img src="public/screenshots/themes/theme-ocean.png" alt="Ocean theme" width="240"/></td>
-    <td align="center"><strong>🌅 Sunset</strong><br/><img src="public/screenshots/themes/theme-sunset.png" alt="Sunset theme" width="240"/></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>🌌 Midnight</strong><br/><img src="public/screenshots/themes/theme-midnight.png" alt="Midnight theme" width="240"/></td>
-    <td align="center"><strong>🍬 Candy</strong><br/><img src="public/screenshots/themes/theme-candy.png" alt="Candy theme" width="240"/></td>
-    <td align="center"><strong>🫧 Bubblegum</strong><br/><img src="public/screenshots/themes/theme-bubblegum.png" alt="Bubblegum theme" width="240"/></td>
-    <td align="center"><strong>⚡ Neon</strong><br/><img src="public/screenshots/themes/theme-neon.png" alt="Neon theme" width="240"/></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>🍋 Lemon</strong><br/><img src="public/screenshots/themes/theme-lemon.png" alt="Lemon theme" width="240"/></td>
-    <td align="center"><strong>🪐 Galaxy</strong><br/><img src="public/screenshots/themes/theme-galaxy.png" alt="Galaxy theme" width="240"/></td>
-    <td align="center"><strong>🌹 Rose</strong><br/><img src="public/screenshots/themes/theme-rose.png" alt="Rose theme" width="240"/></td>
-    <td align="center"><strong>☕ Coffee</strong><br/><img src="public/screenshots/themes/theme-coffee.png" alt="Coffee theme" width="240"/></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>🧊 Arctic</strong><br/><img src="public/screenshots/themes/theme-arctic.png" alt="Arctic theme" width="240"/></td>
-    <td align="center"><strong>🍂 Autumn</strong><br/><img src="public/screenshots/themes/theme-autumn.png" alt="Autumn theme" width="240"/></td>
-    <td align="center"><strong>💎 Emerald</strong><br/><img src="public/screenshots/themes/theme-emerald.png" alt="Emerald theme" width="240"/></td>
-    <td align="center"><strong>🌸 Vapor</strong><br/><img src="public/screenshots/themes/theme-vapor.png" alt="Vapor theme" width="240"/></td>
-  </tr>
-</table>
-
 ## Quick Install (Interactive)
 
 The interactive installers handle Node.js dependencies, AI backend setup (vLLM, llama.cpp, or external API), and `.env.local` generation in one step.
@@ -156,7 +102,7 @@ update.bat
   - Chapter count, reading complexity (Simple / Intermediate / Advanced), vocabulary complexity (Basic / Intermediate / Advanced)
   - A free-form plot outline
 - **Story history**: All previously generated stories are listed on the dashboard and can be re-read at any time.
-- **Themes**: Light, Dark, Sepia, Orbs on White, Orbs on Black — chosen during onboarding and changeable at any time via the ⚙️ button.
+- **Themes**: 21 built-in themes (Light, Dark, Sepia, Forest, Ocean, Sunset, Midnight, Candy, Bubblegum, Neon, Lemon, Galaxy, Rose, Coffee, Arctic, Autumn, Emerald, Vapor, Orbs on White, Orbs on Black, Terminal) — chosen during onboarding and changeable at any time via the ⚙️ button.
 
 ### Admin Dashboard
 - **Settings**: Edit the system prompt sent to the AI, configure the API base URL and model name.
