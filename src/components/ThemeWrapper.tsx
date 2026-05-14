@@ -51,7 +51,7 @@ export default function ThemeWrapper({ children }: ThemeWrapperProps) {
   }, []);
 
   return (
-    <div className={`min-h-screen relative transition-colors duration-500 ${themeClasses[theme]}`}>
+    <div data-theme={theme} className={`min-h-screen relative transition-colors duration-500 ${themeClasses[theme]}`}>
       {(theme === 'orbs-white' || theme === 'orbs-black') && (
         <OrbBackground variant={theme === 'orbs-white' ? 'white' : 'black'} />
       )}
