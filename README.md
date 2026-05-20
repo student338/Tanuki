@@ -2,6 +2,46 @@
 
 An AI-powered story generation web app for students.
 
+## Screenshots
+
+### Login
+
+![Login page](public/screenshots/login.png)
+
+### Student Experience
+
+| Story Request | Reading a Story |
+|---|---|
+| ![Story request form](public/screenshots/student-story-request.png) | ![Student with story](public/screenshots/student-with-story.png) |
+
+**Story Reader**
+
+![Story reader](public/screenshots/story-reader.png)
+
+### Admin Dashboard
+
+| Student Management | Analytics |
+|---|---|
+| ![Admin students](public/screenshots/admin-students.png) | ![Admin analytics](public/screenshots/admin-analytics.png) |
+
+**Settings**
+
+![Admin settings](public/screenshots/admin-settings.png)
+
+### Themes
+
+Tanuki Stories ships with 21 built-in themes:
+
+| | | | |
+|---|---|---|---|
+| ![Light](public/screenshots/themes/theme-light.png) Light | ![Dark](public/screenshots/themes/theme-dark.png) Dark | ![Sepia](public/screenshots/themes/theme-sepia.png) Sepia | ![Forest](public/screenshots/themes/theme-forest.png) Forest |
+| ![Ocean](public/screenshots/themes/theme-ocean.png) Ocean | ![Sunset](public/screenshots/themes/theme-sunset.png) Sunset | ![Midnight](public/screenshots/themes/theme-midnight.png) Midnight | ![Candy](public/screenshots/themes/theme-candy.png) Candy |
+| ![Bubblegum](public/screenshots/themes/theme-bubblegum.png) Bubblegum | ![Neon](public/screenshots/themes/theme-neon.png) Neon | ![Lemon](public/screenshots/themes/theme-lemon.png) Lemon | ![Galaxy](public/screenshots/themes/theme-galaxy.png) Galaxy |
+| ![Rose](public/screenshots/themes/theme-rose.png) Rose | ![Coffee](public/screenshots/themes/theme-coffee.png) Coffee | ![Arctic](public/screenshots/themes/theme-arctic.png) Arctic | ![Autumn](public/screenshots/themes/theme-autumn.png) Autumn |
+| ![Emerald](public/screenshots/themes/theme-emerald.png) Emerald | ![Vapor](public/screenshots/themes/theme-vapor.png) Vapor | ![Orbs on White](public/screenshots/themes/theme-orbs-white.png) Orbs on White | ![Orbs on Black](public/screenshots/themes/theme-orbs-black.png) Orbs on Black |
+
+---
+
 ## Quick Install (Interactive)
 
 The interactive installers handle Node.js dependencies, AI backend setup (vLLM, llama.cpp, or external API), and `.env.local` generation in one step.
