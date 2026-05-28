@@ -456,14 +456,17 @@ echo [Tanuki] Configuring deployment mode...
 echo.
 echo How would you like to deploy Tanuki Stories?
 echo.
-echo   1) Docker with Nginx + uWSGI  ^(production, recommended^)
-echo   2) Standalone                 ^(no WSGI, no Nginx -- direct Node.js^)
+echo   1) Docker with Nginx + uWSGI  ^(full production stack, recommended^)
+echo   2) Docker without Nginx/uWSGI ^(containerized Node.js only, no reverse proxy^)
+echo   3) No Docker                  ^(standalone Node.js, no containers/WSGI/Nginx^)
 echo.
-set /p DEPLOY_CHOICE="Enter number [2]: "
-if "%DEPLOY_CHOICE%"=="" set DEPLOY_CHOICE=2
+set /p DEPLOY_CHOICE="Enter number [3]: "
+if "%DEPLOY_CHOICE%"=="" set DEPLOY_CHOICE=3
 
 if "%DEPLOY_CHOICE%"=="1" (
     call :configure_docker
+) else if "%DEPLOY_CHOICE%"=="2" (
+    call :configure_docker_minimal
 ) else (
     echo.
     echo [Tanuki] Standalone mode selected -- no Docker/Nginx/uWSGI will be configured.
@@ -521,6 +524,51 @@ echo   - uWSGI AI backend proxying to !AI_UPSTREAM_URL!
 echo.
 goto :eof
 
+:: -- Docker minimal (no Nginx/uWSGI) ------------------------------------------
+:configure_docker_minimal
+echo.
+echo [Tanuki] Configuring Docker deployment ^(without Nginx/uWSGI^)...
+echo.
+
+:: Check Docker is available
+where docker >nul 2>&1
+if errorlevel 1 (
+    echo   X  Docker is required for this deployment mode.
+    echo      Install from https://www.docker.com/products/docker-desktop
+    echo      Falling back to standalone mode.
+    echo.
+    set DEPLOY_MODE=standalone
+    goto :eof
+)
+echo   OK  Docker found
+
+where docker-compose >nul 2>&1
+if errorlevel 1 (
+    docker compose version >nul 2>&1
+    if errorlevel 1 (
+        echo   X  Docker Compose is required. Install Docker Desktop or docker-compose.
+        echo      Falling back to standalone mode.
+        echo.
+        set DEPLOY_MODE=standalone
+        goto :eof
+    )
+)
+echo   OK  Docker Compose found
+echo.
+
+set DEPLOY_MODE=docker-minimal
+
+set /p TANUKI_PORT="Port for Tanuki ^(Next.js will listen here^) [3000]: "
+if "%TANUKI_PORT%"=="" set TANUKI_PORT=3000
+
+echo.
+echo [Tanuki] Docker will be configured with:
+echo   - Next.js app container on port !TANUKI_PORT!
+echo   - No Nginx reverse proxy
+echo   - No uWSGI backend
+echo.
+goto :eof
+
 :: -- Write .env.local ----------------------------------------------------------
 :write_env
 echo [Tanuki] Writing .env.local...
@@ -552,10 +600,15 @@ if not "!BACKEND_URL!"=="" (
 :: Docker-specific environment variables
 if "!DEPLOY_MODE!"=="docker" (
     echo. >> .env.local
-    echo # Docker deployment >> .env.local
+    echo # Docker deployment ^(full: Nginx + uWSGI^) >> .env.local
     echo TANUKI_PORT=!TANUKI_PORT! >> .env.local
     echo AI_UPSTREAM_URL=!AI_UPSTREAM_URL! >> .env.local
     echo AI_UPSTREAM_API_KEY=!BACKEND_API_KEY! >> .env.local
+)
+if "!DEPLOY_MODE!"=="docker-minimal" (
+    echo. >> .env.local
+    echo # Docker deployment ^(minimal: Node.js only^) >> .env.local
+    echo TANUKI_PORT=!TANUKI_PORT! >> .env.local
 )
 
 echo   OK  .env.local written
@@ -586,6 +639,28 @@ if "!DEPLOY_MODE!"=="docker" (
     echo.
     echo   To stop:   docker compose down
     echo   To rebuild: docker compose up --build -d
+    echo.
+    if not "!BACKEND_MODEL!"=="" (
+        echo   3. In the Admin UI configure:
+        echo        Model         -^>  !BACKEND_MODEL!
+        if not "!BACKEND_URL!"=="" (
+            echo        API Base URL  -^>  !BACKEND_URL!
+        )
+        echo.
+    )
+) else if "!DEPLOY_MODE!"=="docker-minimal" (
+    echo   1. Start with Docker Compose ^(minimal, no Nginx/uWSGI^):
+    echo        docker compose -f docker-compose.minimal.yml up -d
+    echo.
+    echo   2. Access Tanuki Stories:
+    echo        http://localhost:!TANUKI_PORT!
+    echo.
+    echo   Services running:
+    echo     - Next.js app on port !TANUKI_PORT!
+    echo     - No Nginx, no uWSGI
+    echo.
+    echo   To stop:   docker compose -f docker-compose.minimal.yml down
+    echo   To rebuild: docker compose -f docker-compose.minimal.yml up --build -d
     echo.
     if not "!BACKEND_MODEL!"=="" (
         echo   3. In the Admin UI configure:
@@ -631,6 +706,8 @@ if "!DEPLOY_MODE!"=="docker" (
 )
 
 if "!DEPLOY_MODE!"=="docker" (
+    echo   Open:     http://localhost:!TANUKI_PORT!
+) else if "!DEPLOY_MODE!"=="docker-minimal" (
     echo   Open:     http://localhost:!TANUKI_PORT!
 ) else (
     echo   Open:     http://localhost:3000
