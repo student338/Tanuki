@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.env.local
+data
+models
+*.log
+start-vllm.bat
+start-vllm.sh
+start-llamacpp.bat
+start-llamacpp.sh

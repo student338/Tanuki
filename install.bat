@@ -52,6 +52,11 @@ if "%BE_CHOICE%"=="1" (
     set BACKEND_API_KEY=
 )
 
+:: -- Deployment mode -----------------------------------------------------------
+echo.
+echo --------------------------------------------------------
+call :configure_deployment
+
 :: -- Credentials --------------------------------------------------------------
 echo.
 echo --------------------------------------------------------
@@ -445,6 +450,125 @@ node -e "const fs=require('fs');const lines=fs.readFileSync(process.argv[2],'utf
 echo.
 goto :eof
 
+:: -- Deployment mode -----------------------------------------------------------
+:configure_deployment
+echo [Tanuki] Configuring deployment mode...
+echo.
+echo How would you like to deploy Tanuki Stories?
+echo.
+echo   1) Docker with Nginx + uWSGI  ^(full production stack, recommended^)
+echo   2) Docker without Nginx/uWSGI ^(containerized Node.js only, no reverse proxy^)
+echo   3) No Docker                  ^(standalone Node.js, no containers/WSGI/Nginx^)
+echo.
+set /p DEPLOY_CHOICE="Enter number [3]: "
+if "%DEPLOY_CHOICE%"=="" set DEPLOY_CHOICE=3
+
+if "%DEPLOY_CHOICE%"=="1" (
+    call :configure_docker
+) else if "%DEPLOY_CHOICE%"=="2" (
+    call :configure_docker_minimal
+) else (
+    echo.
+    echo [Tanuki] Standalone mode selected -- no Docker/Nginx/uWSGI will be configured.
+    echo   The app will run directly via: npm run dev  or  npm run build ^& npm start
+    echo.
+    set DEPLOY_MODE=standalone
+)
+goto :eof
+
+:: -- Docker configuration -----------------------------------------------------
+:configure_docker
+echo.
+echo [Tanuki] Configuring Docker deployment...
+echo.
+
+:: Check Docker is available
+where docker >nul 2>&1
+if errorlevel 1 (
+    echo   X  Docker is required for this deployment mode.
+    echo      Install from https://www.docker.com/products/docker-desktop
+    echo      Falling back to standalone mode.
+    echo.
+    set DEPLOY_MODE=standalone
+    goto :eof
+)
+echo   OK  Docker found
+
+where docker-compose >nul 2>&1
+if errorlevel 1 (
+    docker compose version >nul 2>&1
+    if errorlevel 1 (
+        echo   X  Docker Compose is required. Install Docker Desktop or docker-compose.
+        echo      Falling back to standalone mode.
+        echo.
+        set DEPLOY_MODE=standalone
+        goto :eof
+    )
+)
+echo   OK  Docker Compose found
+echo.
+
+set DEPLOY_MODE=docker
+
+set /p TANUKI_PORT="Public port for Tanuki ^(Nginx will listen here^) [80]: "
+if "%TANUKI_PORT%"=="" set TANUKI_PORT=80
+
+set /p AI_UPSTREAM_URL="AI model server URL for uWSGI backend [http://host.docker.internal:8000/v1]: "
+if "%AI_UPSTREAM_URL%"=="" set AI_UPSTREAM_URL=http://host.docker.internal:8000/v1
+
+echo.
+echo [Tanuki] Docker will be configured with:
+echo   - Nginx reverse proxy on port !TANUKI_PORT!
+echo   - Next.js app container
+echo   - uWSGI AI backend proxying to !AI_UPSTREAM_URL!
+echo.
+goto :eof
+
+:: -- Docker minimal (no Nginx/uWSGI) ------------------------------------------
+:configure_docker_minimal
+echo.
+echo [Tanuki] Configuring Docker deployment ^(without Nginx/uWSGI^)...
+echo.
+
+:: Check Docker is available
+where docker >nul 2>&1
+if errorlevel 1 (
+    echo   X  Docker is required for this deployment mode.
+    echo      Install from https://www.docker.com/products/docker-desktop
+    echo      Falling back to standalone mode.
+    echo.
+    set DEPLOY_MODE=standalone
+    goto :eof
+)
+echo   OK  Docker found
+
+where docker-compose >nul 2>&1
+if errorlevel 1 (
+    docker compose version >nul 2>&1
+    if errorlevel 1 (
+        echo   X  Docker Compose is required. Install Docker Desktop or docker-compose.
+        echo      Falling back to standalone mode.
+        echo.
+        set DEPLOY_MODE=standalone
+        goto :eof
+    )
+)
+echo   OK  Docker Compose found
+echo.
+
+set DEPLOY_MODE=docker-minimal
+
+set /p TANUKI_PORT="Port for Tanuki ^(Next.js will listen here^) [3000]: "
+if "%TANUKI_PORT%"=="" set TANUKI_PORT=3000
+
+echo.
+echo [Tanuki] Docker will be configured with:
+echo   - Next.js app container on port !TANUKI_PORT!
+echo   - No Nginx reverse proxy
+echo   - No uWSGI backend
+echo.
+goto :eof
+
 :: -- Write .env.local ----------------------------------------------------------
 :write_env
 echo [Tanuki] Writing .env.local...
@@ -473,6 +597,20 @@ if not "!BACKEND_URL!"=="" (
     echo OPENAI_BASE_URL=!BACKEND_URL! >> .env.local
 )
 
+:: Docker-specific environment variables
+if "!DEPLOY_MODE!"=="docker" (
+    echo. >> .env.local
+    echo # Docker deployment ^(full: Nginx + uWSGI^) >> .env.local
+    echo TANUKI_PORT=!TANUKI_PORT! >> .env.local
+    echo AI_UPSTREAM_URL=!AI_UPSTREAM_URL! >> .env.local
+    echo AI_UPSTREAM_API_KEY=!BACKEND_API_KEY! >> .env.local
+)
+if "!DEPLOY_MODE!"=="docker-minimal" (
+    echo. >> .env.local
+    echo # Docker deployment ^(minimal: Node.js only^) >> .env.local
+    echo TANUKI_PORT=!TANUKI_PORT! >> .env.local
+)
+
 echo   OK  .env.local written
 echo.
 goto :eof
@@ -487,7 +625,52 @@ echo.
 echo   Next steps:
 echo.
 
-if exist start-vllm.bat (
+if "!DEPLOY_MODE!"=="docker" (
+    echo   1. Start with Docker Compose:
+    echo        docker compose up -d
+    echo.
+    echo   2. Access Tanuki Stories:
+    echo        http://localhost:!TANUKI_PORT!
+    echo.
+    echo   Services running:
+    echo     - Nginx ^(reverse proxy^) on port !TANUKI_PORT!
+    echo     - Next.js app ^(internal port 3000^)
+    echo     - uWSGI AI backend ^(internal port 5000^)
+    echo.
+    echo   To stop:   docker compose down
+    echo   To rebuild: docker compose up --build -d
+    echo.
+    if not "!BACKEND_MODEL!"=="" (
+        echo   3. In the Admin UI configure:
+        echo        Model         -^>  !BACKEND_MODEL!
+        if not "!BACKEND_URL!"=="" (
+            echo        API Base URL  -^>  !BACKEND_URL!
+        )
+        echo.
+    )
+) else if "!DEPLOY_MODE!"=="docker-minimal" (
+    echo   1. Start with Docker Compose ^(minimal, no Nginx/uWSGI^):
+    echo        docker compose -f docker-compose.minimal.yml up -d
+    echo.
+    echo   2. Access Tanuki Stories:
+    echo        http://localhost:!TANUKI_PORT!
+    echo.
+    echo   Services running:
+    echo     - Next.js app on port !TANUKI_PORT!
+    echo     - No Nginx, no uWSGI
+    echo.
+    echo   To stop:   docker compose -f docker-compose.minimal.yml down
+    echo   To rebuild: docker compose -f docker-compose.minimal.yml up --build -d
+    echo.
+    if not "!BACKEND_MODEL!"=="" (
+        echo   3. In the Admin UI configure:
+        echo        Model         -^>  !BACKEND_MODEL!
+        if not "!BACKEND_URL!"=="" (
+            echo        API Base URL  -^>  !BACKEND_URL!
+        )
+        echo.
+    )
+) else if exist start-vllm.bat (
     echo   1. Start the vLLM server ^(keep running, open a new terminal^):
     echo        start-vllm.bat
     echo.
@@ -509,7 +692,7 @@ if exist start-vllm.bat (
     echo   3. Start Tanuki Stories:
     echo        npm run dev
 ) else (
-    echo   1. Start Tanuki Stories:
+    echo   1. Start Tanuki Stories ^(standalone, no WSGI/Nginx^):
     echo        npm run dev         ^(development^)
     echo        npm run build ^& npm start   ^(production^)
     if not "!BACKEND_MODEL!"=="" (
@@ -522,8 +705,13 @@ if exist start-vllm.bat (
     )
 )
 
-echo.
-echo   Open:     http://localhost:3000
+if "!DEPLOY_MODE!"=="docker" (
+    echo   Open:     http://localhost:!TANUKI_PORT!
+) else if "!DEPLOY_MODE!"=="docker-minimal" (
+    echo   Open:     http://localhost:!TANUKI_PORT!
+) else (
+    echo   Open:     http://localhost:3000
+)
 echo   Admin:    !ADMIN_USER! / ^(your password^)
 echo   Students: manage via Admin UI ^→ Student Management
 echo.
