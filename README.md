@@ -122,6 +122,42 @@ update.bat
 
 ---
 
+## Production Deployment with nginx
+
+For production, use **nginx** as a reverse proxy in front of both the Next.js app and the AI backend server.
+
+1. Build the Next.js app for production:
+   ```bash
+   npm run build
+   npm start
+   ```
+
+2. If using a local AI backend, start it in a separate terminal:
+   ```bash
+   bash start-vllm.sh        # or: bash start-llamacpp.sh
+   ```
+
+3. Install nginx and deploy the included configuration:
+   ```bash
+   sudo apt install nginx                             # Debian/Ubuntu
+   sudo cp nginx.conf /etc/nginx/sites-available/tanuki
+   sudo ln -s /etc/nginx/sites-available/tanuki /etc/nginx/sites-enabled/
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+
+4. Open [http://localhost](http://localhost) (port 80).
+
+The `nginx.conf` file proxies:
+- `/` → Next.js app on port 3000 (with WebSocket and streaming support)
+- `/ai/` → AI backend on port 8000 (vLLM or llama.cpp)
+- `/_next/static/` → cached static assets
+
+> **Tip:** When using nginx, set the *API Base URL* in the Admin UI to `http://localhost/ai/v1` so that AI requests route through nginx.
+
+To enable HTTPS, uncomment the SSL server block in `nginx.conf` and provide your certificate paths.
+
+---
+
 ## Demo Accounts
 
 | Role    | Username  | Password     |

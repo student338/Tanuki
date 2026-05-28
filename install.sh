@@ -590,6 +590,12 @@ print_summary() {
   echo -e "  ${CYAN}Admin:${RESET} ${ADMIN_USER:-admin} / (your password)"
   echo -e "  ${CYAN}Students:${RESET} manage via Admin UI → Student Management"
   echo
+  echo -e "  ${MAGENTA}Production tip:${RESET} use nginx as a reverse proxy:"
+  echo -e "       ${YELLOW}sudo cp nginx.conf /etc/nginx/sites-available/tanuki${RESET}"
+  echo -e "       ${YELLOW}sudo ln -s /etc/nginx/sites-available/tanuki /etc/nginx/sites-enabled/${RESET}"
+  echo -e "       ${YELLOW}sudo nginx -t && sudo systemctl reload nginx${RESET}"
+  echo -e "       Then open http://localhost (port 80)"
+  echo
   hr
 }
 
