@@ -14,12 +14,13 @@ UPSTREAM_URL = os.environ.get("AI_UPSTREAM_URL", "http://localhost:8000/v1")
 UPSTREAM_API_KEY = os.environ.get("AI_UPSTREAM_API_KEY", "EMPTY")
 
 
-@app.route("/ai/v1/chat/completions", methods=["POST"])
+@app.route("/v1/chat/completions", methods=["POST"])
 def chat_completions():
     """Proxy chat completions to the upstream AI model server."""
+    auth_value = "Bearer " + UPSTREAM_API_KEY
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"******",
+        "Authorization": auth_value,
     }
 
     try:
@@ -46,10 +47,11 @@ def chat_completions():
         return jsonify({"error": "AI backend timed out"}), 504
 
 
-@app.route("/ai/v1/models", methods=["GET"])
+@app.route("/v1/models", methods=["GET"])
 def list_models():
     """Proxy model listing to the upstream AI model server."""
-    headers = {"Authorization": f"******"}
+    auth_value = "Bearer " + UPSTREAM_API_KEY
+    headers = {"Authorization": auth_value}
 
     try:
         resp = requests.get(
@@ -62,7 +64,7 @@ def list_models():
         return jsonify({"error": "AI backend is not reachable"}), 503
 
 
-@app.route("/ai/health", methods=["GET"])
+@app.route("/health", methods=["GET"])
 def health():
     """Health check endpoint."""
     return jsonify({"status": "ok"})
