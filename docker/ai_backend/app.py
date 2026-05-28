@@ -14,25 +14,33 @@ UPSTREAM_URL = os.environ.get("AI_UPSTREAM_URL", "http://localhost:8000/v1")
 UPSTREAM_API_KEY = os.environ.get("AI_UPSTREAM_API_KEY", "EMPTY")
 
 
+def _auth_headers(content_type=None):
+    """Build common authorization headers for upstream requests."""
+    headers = {"Authorization": "Bearer " + UPSTREAM_API_KEY}
+    if content_type:
+        headers["Content-Type"] = content_type
+    return headers
+
+
 @app.route("/v1/chat/completions", methods=["POST"])
 def chat_completions():
     """Proxy chat completions to the upstream AI model server."""
-    auth_value = "Bearer " + UPSTREAM_API_KEY
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": auth_value,
-    }
+    body = request.get_json(silent=True)
+    if body is None:
+        return jsonify({"error": "Invalid or missing JSON body"}), 400
+
+    is_stream = body.get("stream", False)
 
     try:
         resp = requests.post(
             f"{UPSTREAM_URL}/chat/completions",
-            json=request.get_json(),
-            headers=headers,
+            json=body,
+            headers=_auth_headers("application/json"),
             timeout=120,
-            stream=request.json.get("stream", False),
+            stream=is_stream,
         )
 
-        if request.json.get("stream", False):
+        if is_stream:
             return Response(
                 resp.iter_content(chunk_size=1024),
                 content_type=resp.headers.get("Content-Type", "text/event-stream"),
@@ -50,13 +58,10 @@ def chat_completions():
 @app.route("/v1/models", methods=["GET"])
 def list_models():
     """Proxy model listing to the upstream AI model server."""
-    auth_value = "Bearer " + UPSTREAM_API_KEY
-    headers = {"Authorization": auth_value}
-
     try:
         resp = requests.get(
             f"{UPSTREAM_URL}/models",
-            headers=headers,
+            headers=_auth_headers(),
             timeout=10,
         )
         return jsonify(resp.json()), resp.status_code
