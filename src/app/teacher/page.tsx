@@ -11,6 +11,7 @@ import {
   MATURITY_LEVEL_MAX,
   MATURITY_LEVEL_DEFAULT,
 } from '@/lib/safety';
+import { confirmUnauthenticated } from '@/lib/client-auth';
 import type { StudentAnalytics, AnalyticsSummary } from '@/app/api/admin/analytics/route';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -71,16 +72,19 @@ export default function TeacherPage() {
       fetch('/api/admin/config'),
       fetch('/api/auth/me'),
     ]);
-    if (cfgRes.status === 403 || cfgRes.status === 401) {
+    if (cfgRes.status === 403 || cfgRes.status === 401 || meRes.status === 401) {
       for (let attempt = 0; attempt < 5; attempt++) {
         await new Promise((r) => setTimeout(r, 300));
         [cfgRes, meRes] = await Promise.all([
           fetch('/api/admin/config'),
           fetch('/api/auth/me'),
         ]);
-        if (cfgRes.status !== 403 && cfgRes.status !== 401) break;
+        if (cfgRes.status !== 403 && cfgRes.status !== 401 && meRes.status !== 401) break;
       }
-      if (cfgRes.status === 403 || cfgRes.status === 401) { router.push('/login'); return; }
+      if (cfgRes.status === 403 || cfgRes.status === 401 || meRes.status === 401) {
+        if (await confirmUnauthenticated()) router.push('/login');
+        return;
+      }
     }
     const meData = meRes.ok ? await meRes.json() : null;
     const role = meData?.user?.role as string | undefined;
