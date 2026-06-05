@@ -2,9 +2,6 @@
 
 import { useState, useEffect } from 'react';
 
-const SESSION_POLL_INTERVAL_MS = 250;
-const SESSION_MAX_POLL_ATTEMPTS = 24; // 6s total wait
-
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -48,23 +45,11 @@ export default function LoginPage() {
       }
       const data = await res.json();
       navigated = true;
-      // Safari on iOS/iPadOS can delay writing a cookie that was set in the
-      // response to a fetch() POST request.  Polling /api/auth/me until it
-      // returns 200 ensures the session cookie is fully committed to the
-      // browser's jar before we navigate, so the destination page's very first
-      // API call already carries the cookie and avoids a spurious 401 redirect.
-      let cookieReady = false;
-      for (let attempt = 0; attempt < SESSION_MAX_POLL_ATTEMPTS; attempt++) {
-        await new Promise((r) => setTimeout(r, SESSION_POLL_INTERVAL_MS));
-        try {
-          const check = await fetch('/api/auth/me', { cache: 'no-store' });
-          if (check.ok) { cookieReady = true; break; }
-        } catch { /* ignore network errors during polling */ }
-      }
-      if (!cookieReady) {
-        setError('Unable to verify login session. Please try logging in again.');
-        return;
-      }
+      // Navigate immediately via full page navigation.  On iOS/iPadOS WebKit,
+      // cookies set via a fetch() response are not visible to subsequent
+      // fetch() calls in the same page context, but they ARE available after a
+      // full page navigation (window.location).  Polling with fetch would
+      // always time out on iPads for this reason, so we skip it entirely.
       if (data.user.role === 'admin') window.location.replace('/admin');
       else if (data.user.role === 'teacher') window.location.replace('/teacher');
       else window.location.replace('/student');
