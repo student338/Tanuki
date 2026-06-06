@@ -5,12 +5,23 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:tauri": "TAURI_BUILD=1 next build",
     "start": "next start",
     "lint": "next lint",
-    "test:selenium": "jest --config jest.selenium.config.js"
+    "test:selenium": "jest --config jest.selenium.config.js",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:windows": "tauri build --target x86_64-pc-windows-msvc",
+    "tauri:build:macos": "tauri build --target universal-apple-darwin",
+    "tauri:build:linux": "tauri build --target x86_64-unknown-linux-gnu",
+    "tauri:build:ios": "tauri ios build",
+    "tauri:build:android": "tauri android build"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-shell": "^2",
     "@types/pdf-parse": "^1.1.5",
     "jspdf": "^4.2.1",
     "next": "15.5.15",
@@ -20,6 +31,7 @@
     "react-dom": "^18"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2",
     "@types/jest": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^18",

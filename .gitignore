@@ -45,3 +45,8 @@ start-vllm.bat
 start-llamacpp.sh
 start-llamacpp.bat
 models/
+
+# Tauri
+src-tauri/target/
+src-tauri/binaries/llama-server*
+src-tauri/gen/
