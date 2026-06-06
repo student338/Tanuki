@@ -6,6 +6,8 @@
 const DB_NAME = 'tanuki-offline';
 const DB_VERSION = 1;
 
+// Schema definition for IndexedDB stores (used for documentation)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface OfflineStore {
   stories: { id: string; data: unknown; timestamp: number };
   userData: { key: string; value: unknown; timestamp: number };
@@ -109,16 +111,27 @@ export async function markMutationsSynced(ids: number[]): Promise<void> {
   const db = await openDB();
   const tx = db.transaction('mutations', 'readwrite');
   const store = tx.objectStore('mutations');
-  for (const id of ids) {
-    const request = store.get(id);
-    request.onsuccess = () => {
-      const record = request.result;
-      if (record) {
-        record.synced = true;
-        store.put(record);
-      }
-    };
-  }
+
+  await Promise.all(
+    ids.map((id) => {
+      return new Promise<void>((resolve, reject) => {
+        const request = store.get(id);
+        request.onsuccess = () => {
+          const record = request.result;
+          if (record) {
+            record.synced = true;
+            const putReq = store.put(record);
+            putReq.onsuccess = () => resolve();
+            putReq.onerror = () => reject(putReq.error);
+          } else {
+            resolve();
+          }
+        };
+        request.onerror = () => reject(request.error);
+      });
+    })
+  );
+
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);

@@ -59,13 +59,14 @@ pub async fn load_model(
     let child = std::process::Command::new(&sidecar_path)
         .args(&args)
         .spawn()
-        .map_err(|e| format!("Failed to start llama-server: {}", e))?;
+        .map_err(|e| format!("Failed to start llama-server at {}: {}", sidecar_path.display(), e))?;
 
     *MODEL_PROCESS.lock().unwrap() = Some(child);
     *MODEL_PATH.lock().unwrap() = Some(model_path.clone());
 
-    // Wait a moment for server to start
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    // Allow time for the server to initialize and bind to the port
+    const LLAMA_SERVER_STARTUP_DELAY_SECS: u64 = 2;
+    tokio::time::sleep(std::time::Duration::from_secs(LLAMA_SERVER_STARTUP_DELAY_SECS)).await;
 
     Ok(ModelStatus {
         loaded: true,

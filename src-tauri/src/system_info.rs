@@ -88,7 +88,10 @@ fn detect_gpu_name() -> Option<String> {
     }
 }
 
-/// Calculate optimal context size based on available system RAM
+/// Calculate optimal context size based on available system RAM.
+/// These thresholds balance model quality (larger context = better coherence)
+/// against memory pressure. Each context token consumes ~0.5-2KB depending on
+/// model architecture, so we scale conservatively to avoid OOM.
 pub fn calculate_optimal_ctx_size(total_ram_mb: u64) -> u32 {
     match total_ram_mb {
         0..=4095 => 512,
@@ -99,7 +102,11 @@ pub fn calculate_optimal_ctx_size(total_ram_mb: u64) -> u32 {
     }
 }
 
-/// Calculate the number of GPU layers to offload
+/// Calculate the number of GPU layers to offload.
+/// Note: For NVIDIA/AMD, this uses system RAM as a heuristic proxy for VRAM
+/// since querying VRAM programmatically requires vendor-specific APIs.
+/// In practice, users can override this via the UI. macOS Metal always offloads
+/// all layers since unified memory is shared between CPU and GPU.
 pub fn calculate_gpu_layers(info: &SystemInfo) -> u32 {
     if !info.gpu_available {
         return 0;
