@@ -26,12 +26,14 @@ async function invoke<T>(command: string, args?: Record<string, unknown>): Promi
 
 // ---- Device Identity ----
 
-export async function getDeviceHash(): Promise<string | null> {
-  return invoke<string>('get_device_hash');
-}
-
 export async function getDeviceId(): Promise<string | null> {
   return invoke<string>('get_device_id');
+}
+
+// ---- Control Center ----
+
+export async function getControlCenterHash(): Promise<string | null> {
+  return invoke<string | null>('get_control_center_hash');
 }
 
 // ---- Sync Engine ----
@@ -47,8 +49,8 @@ export async function getSyncStatus(): Promise<SyncStatus | null> {
   return invoke<SyncStatus>('get_sync_status');
 }
 
-export async function setControlCenterUrl(url: string): Promise<void> {
-  await invoke('set_control_center_url', { url });
+export async function setControlCenterUrl(url: string, hash: string): Promise<void> {
+  await invoke('set_control_center_url', { url, hash });
 }
 
 export async function getControlCenterUrl(): Promise<string | null> {

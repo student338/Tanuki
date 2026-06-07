@@ -36,6 +36,8 @@ pub struct SyncStatus {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct ControlCenterConfig {
     url: String,
+    /// The control center hash — identifies which control center this device belongs to
+    hash: String,
     auth_token: Option<String>,
     paired_at: Option<String>,
 }
@@ -89,7 +91,7 @@ fn save_cc_config(data_dir: &Path, config: &ControlCenterConfig) -> Result<(), S
     fs::write(control_center_path(data_dir), json).map_err(|e| e.to_string())
 }
 
-/// Background loop: broadcasts device hash and syncs pending mutations
+/// Background loop: broadcasts control center hash and syncs pending mutations
 pub async fn start_broadcast_loop(app_handle: tauri::AppHandle, data_dir: PathBuf) {
     let client = Client::new();
 
@@ -107,7 +109,7 @@ pub async fn start_broadcast_loop(app_handle: tauri::AppHandle, data_dir: PathBu
         let broadcast_result = client
             .post(format!("{}/api/devices/heartbeat", cc.url))
             .json(&serde_json::json!({
-                "device_hash": identity.hash,
+                "control_center_hash": cc.hash,
                 "device_id": identity.device_id,
                 "timestamp": Utc::now().to_rfc3339(),
             }))
@@ -126,12 +128,12 @@ pub async fn start_broadcast_loop(app_handle: tauri::AppHandle, data_dir: PathBu
 
         // If we just came back online, sync all pending mutations
         if now_online && !was_online {
-            let _ = sync_pending_mutations(&client, &data_dir, &cc, &identity.hash).await;
+            let _ = sync_pending_mutations(&client, &data_dir, &cc, &cc.hash).await;
             // Also pull latest config from control center
-            let _ = pull_config_from_cc(&client, &data_dir, &cc, &identity.hash).await;
+            let _ = pull_config_from_cc(&client, &data_dir, &cc, &cc.hash).await;
         } else if now_online {
             // Regular sync of any pending mutations
-            let _ = sync_pending_mutations(&client, &data_dir, &cc, &identity.hash).await;
+            let _ = sync_pending_mutations(&client, &data_dir, &cc, &cc.hash).await;
         }
 
         // Emit sync status event to frontend
@@ -143,7 +145,7 @@ async fn sync_pending_mutations(
     client: &Client,
     data_dir: &Path,
     cc: &ControlCenterConfig,
-    device_hash: &str,
+    control_center_hash: &str,
 ) -> Result<(), String> {
     let conn = init_db(data_dir)?;
 
@@ -173,7 +175,7 @@ async fn sync_pending_mutations(
     let response = client
         .post(format!("{}/api/devices/sync", cc.url))
         .json(&serde_json::json!({
-            "device_hash": device_hash,
+            "control_center_hash": control_center_hash,
             "mutations": mutations,
             "auth_token": cc.auth_token,
         }))
@@ -205,11 +207,11 @@ async fn pull_config_from_cc(
     client: &Client,
     data_dir: &Path,
     cc: &ControlCenterConfig,
-    device_hash: &str,
+    control_center_hash: &str,
 ) -> Result<(), String> {
     let response = client
         .get(format!("{}/api/devices/config", cc.url))
-        .query(&[("device_hash", device_hash)])
+        .query(&[("control_center_hash", control_center_hash)])
         .timeout(Duration::from_secs(10))
         .send()
         .await
@@ -257,10 +259,11 @@ pub fn get_sync_status(app_handle: tauri::AppHandle) -> Result<SyncStatus, Strin
 }
 
 #[tauri::command]
-pub fn set_control_center_url(app_handle: tauri::AppHandle, url: String) -> Result<(), String> {
+pub fn set_control_center_url(app_handle: tauri::AppHandle, url: String, hash: String) -> Result<(), String> {
     let data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
     let config = ControlCenterConfig {
         url,
+        hash,
         auth_token: None,
         paired_at: Some(Utc::now().to_rfc3339()),
     };
@@ -271,6 +274,12 @@ pub fn set_control_center_url(app_handle: tauri::AppHandle, url: String) -> Resu
 pub fn get_control_center_url(app_handle: tauri::AppHandle) -> Result<Option<String>, String> {
     let data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
     Ok(get_cc_config(&data_dir).map(|c| c.url))
+}
+
+#[tauri::command]
+pub fn get_control_center_hash(app_handle: tauri::AppHandle) -> Result<Option<String>, String> {
+    let data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    Ok(get_cc_config(&data_dir).map(|c| c.hash))
 }
 
 #[tauri::command]
@@ -321,11 +330,11 @@ pub fn get_pending_mutations(app_handle: tauri::AppHandle) -> Result<Vec<Mutatio
 pub async fn force_sync(app_handle: tauri::AppHandle) -> Result<bool, String> {
     let data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
     let cc = get_cc_config(&data_dir).ok_or("No control center configured")?;
-    let identity = device_identity::ensure_device_identity(&data_dir);
     let client = Client::new();
 
-    sync_pending_mutations(&client, &data_dir, &cc, &identity.hash).await?;
-    pull_config_from_cc(&client, &data_dir, &cc, &identity.hash).await?;
+    let hash = cc.hash.clone();
+    sync_pending_mutations(&client, &data_dir, &cc, &hash).await?;
+    pull_config_from_cc(&client, &data_dir, &cc, &hash).await?;
 
     IS_ONLINE.store(true, Ordering::Relaxed);
     Ok(true)

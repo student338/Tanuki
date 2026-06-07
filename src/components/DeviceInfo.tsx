@@ -3,16 +3,17 @@
 import { useEffect, useState } from 'react';
 import {
   isTauri,
-  getDeviceHash,
+  getControlCenterHash,
   getDeviceId,
   getControlCenterUrl,
   setControlCenterUrl,
 } from '@/lib/tauri/bridge';
 
 export default function DeviceInfo() {
-  const [deviceHash, setDeviceHash] = useState<string | null>(null);
+  const [controlCenterHash, setControlCenterHash] = useState<string | null>(null);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [ccUrl, setCcUrl] = useState<string>('');
+  const [ccHash, setCcHash] = useState<string>('');
   const [savedUrl, setSavedUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -20,8 +21,8 @@ export default function DeviceInfo() {
     if (!isTauri()) return;
 
     const init = async () => {
-      const hash = await getDeviceHash();
-      setDeviceHash(hash);
+      const hash = await getControlCenterHash();
+      setControlCenterHash(hash);
 
       const id = await getDeviceId();
       setDeviceId(id);
@@ -39,11 +40,12 @@ export default function DeviceInfo() {
   if (!isTauri()) return null;
 
   const handleSaveUrl = async () => {
-    if (!ccUrl.trim()) return;
+    if (!ccUrl.trim() || !ccHash.trim()) return;
     setSaving(true);
     try {
-      await setControlCenterUrl(ccUrl.trim());
+      await setControlCenterUrl(ccUrl.trim(), ccHash.trim());
       setSavedUrl(ccUrl.trim());
+      setControlCenterHash(ccHash.trim());
     } finally {
       setSaving(false);
     }
@@ -60,16 +62,16 @@ export default function DeviceInfo() {
         </div>
       )}
 
-      {deviceHash && (
+      {controlCenterHash && (
         <div className="mb-3">
-          <p className="text-xs text-gray-400">SHA-512 Hash (first 32 chars)</p>
-          <p className="text-sm font-mono truncate">{deviceHash.slice(0, 32)}...</p>
+          <p className="text-xs text-gray-400">Control Center Hash</p>
+          <p className="text-sm font-mono truncate">{controlCenterHash}</p>
         </div>
       )}
 
       <div className="border-t border-gray-700 pt-3 mt-3">
         <p className="text-xs text-gray-400 mb-1">Control Center URL</p>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2">
           <input
             type="url"
             value={ccUrl}
@@ -77,16 +79,23 @@ export default function DeviceInfo() {
             placeholder="https://your-control-center.example.com"
             className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm"
           />
+          <input
+            type="text"
+            value={ccHash}
+            onChange={(e) => setCcHash(e.target.value)}
+            placeholder="Control center hash"
+            className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-sm"
+          />
           <button
             onClick={handleSaveUrl}
-            disabled={saving || ccUrl === savedUrl}
+            disabled={saving || !ccUrl.trim() || !ccHash.trim()}
             className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-sm"
           >
-            {saving ? '...' : 'Save'}
+            {saving ? '...' : 'Pair'}
           </button>
         </div>
         {savedUrl && (
-          <p className="text-xs text-green-400 mt-1">✓ Connected to control center</p>
+          <p className="text-xs text-green-400 mt-1">✓ Paired with control center</p>
         )}
       </div>
     </div>

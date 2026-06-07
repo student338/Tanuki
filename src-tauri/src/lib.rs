@@ -26,11 +26,11 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            device_identity::get_device_hash,
             device_identity::get_device_id,
             sync_engine::get_sync_status,
             sync_engine::set_control_center_url,
             sync_engine::get_control_center_url,
+            sync_engine::get_control_center_hash,
             sync_engine::queue_mutation,
             sync_engine::get_pending_mutations,
             sync_engine::force_sync,
