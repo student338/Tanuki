@@ -110,12 +110,12 @@ pub async fn start_broadcast_loop(app_handle: tauri::AppHandle, data_dir: PathBu
             .post(format!("{}/api/devices/heartbeat", cc.url))
             .json(&serde_json::json!({
                 "control_center_hash": cc.hash,
-                "device_id": identity.device_id,
                 "timestamp": Utc::now().to_rfc3339(),
             }))
             .timeout(Duration::from_secs(10))
             .send()
             .await;
+
 
         let was_online = IS_ONLINE.load(Ordering::Relaxed);
         let now_online = broadcast_result.is_ok()
@@ -148,6 +148,7 @@ async fn sync_pending_mutations(
     control_center_hash: &str,
 ) -> Result<(), String> {
     let conn = init_db(data_dir)?;
+    let identity = device_identity::ensure_device_identity(data_dir);
 
     let mut stmt = conn
         .prepare("SELECT id, mutation_type, payload, created_at FROM mutations WHERE synced = 0 ORDER BY id ASC")
@@ -176,6 +177,7 @@ async fn sync_pending_mutations(
         .post(format!("{}/api/devices/sync", cc.url))
         .json(&serde_json::json!({
             "control_center_hash": control_center_hash,
+            "device_id": identity.device_id,
             "mutations": mutations,
             "auth_token": cc.auth_token,
         }))
@@ -209,9 +211,13 @@ async fn pull_config_from_cc(
     cc: &ControlCenterConfig,
     control_center_hash: &str,
 ) -> Result<(), String> {
+    let identity = device_identity::ensure_device_identity(data_dir);
     let response = client
         .get(format!("{}/api/devices/config", cc.url))
-        .query(&[("control_center_hash", control_center_hash)])
+        .query(&[
+            ("control_center_hash", control_center_hash),
+            ("device_id", &identity.device_id),
+        ])
         .timeout(Duration::from_secs(10))
         .send()
         .await
