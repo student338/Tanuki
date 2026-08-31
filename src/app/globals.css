@@ -2,6 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   iPad / iOS Safari compatibility
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Respect iPad safe areas (home indicator, rounded corners) with viewportFit=cover. */
+body {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* iOS Safari auto-zooms focused text fields whose font-size is below 16px,
+   which breaks layouts on iPad. Force 16px on text-entry controls. */
+input,
+select,
+textarea {
+  font-size: max(1em, 16px);
+}
+
+/* Remove the 300ms tap delay and the grey tap highlight on iPad. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+html {
+  touch-action: manipulation;
+}
+
 @keyframes iconFloat {
   0%, 100% { transform: translateY(0px) rotate(0deg) scale(1); }
   30% { transform: translateY(-5px) rotate(-10deg) scale(1.15); }
@@ -225,6 +250,18 @@
 }
 [data-theme="aurora"] {
   background: linear-gradient(160deg, #020617 0%, #0b1030 30%, #052e2b 60%, #111033 85%, #020617 100%);
+}
+[data-theme="coral"] {
+  background: linear-gradient(150deg, #fff7ed 0%, #ffedd5 38%, #fed7aa 68%, #fdba74 100%);
+}
+[data-theme="storm"] {
+  background: linear-gradient(165deg, #0f172a 0%, #1e293b 40%, #334155 72%, #0f172a 100%);
+}
+[data-theme="mint"] {
+  background: linear-gradient(150deg, #ecfdf5 0%, #d1fae5 40%, #a7f3d0 72%, #6ee7b7 100%);
+}
+[data-theme="sunset-dunes"] {
+  background: linear-gradient(160deg, #fffbeb 0%, #fef3c7 35%, #fde68a 60%, #fcd34d 82%, #f59e0b 100%);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

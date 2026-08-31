@@ -9,7 +9,7 @@ import { Story, LockableField, StoryPlan } from '@/lib/storage';
 import { ReadingLevel } from '@/lib/reading-levels';
 import { MATURITY_LEVEL_INFO, MATURITY_LEVEL_DEFAULT, MATURITY_LEVEL_MAX } from '@/lib/safety';
 import ThemeSelector, { Theme, VALID_THEMES } from '@/components/ThemeSelector';
-import { confirmUnauthenticated } from '@/lib/client-auth';
+import { confirmUnauthenticated, fetchWithAuthRetry } from '@/lib/client-auth';
 
 const GENRES = [
   'Fantasy', 'Adventure', 'Mystery', 'Sci-Fi', 'Romance', 'Horror', 'Comedy', 'Historical',
@@ -82,17 +82,10 @@ export default function StudentPage() {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   const loadStories = useCallback(async () => {
-    let res = await fetch('/api/stories');
-    if (res.status === 401) {
-      // On iOS/iPadOS the httpOnly session cookie written by the login fetch
-      // may not be flushed to the cookie jar before the first in-page requests
-      // fire after window.location.replace. Retry with increasing delays.
-      for (let attempt = 0; attempt < 5; attempt++) {
-        await new Promise((r) => setTimeout(r, 300));
-        res = await fetch('/api/stories');
-        if (res.status !== 401) break;
-      }
-    }
+    // On iOS/iPadOS the httpOnly session cookie written by the login fetch
+    // may not be flushed to the cookie jar before the first in-page requests
+    // fire after navigation; fetchWithAuthRetry retries transient 401s.
+    const res = await fetchWithAuthRetry('/api/stories', undefined, { retryStatuses: [401] });
     if (res.status === 401) {
       if (await confirmUnauthenticated()) router.push('/login');
       return;

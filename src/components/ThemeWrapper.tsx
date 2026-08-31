@@ -34,6 +34,10 @@ const themeClasses: Record<Theme, string> = {
   crimson: 'bg-red-950 text-red-100',
   meadow: 'bg-lime-50 text-lime-950',
   aurora: 'bg-indigo-950 text-indigo-100',
+  coral: 'bg-orange-50 text-orange-950',
+  storm: 'bg-slate-900 text-slate-100',
+  mint: 'bg-emerald-50 text-emerald-950',
+  'sunset-dunes': 'bg-amber-50 text-amber-950',
 };
 
 interface ThemeWrapperProps {

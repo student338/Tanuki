@@ -1,8 +1,8 @@
 'use client';
 
-export type Theme = 'light' | 'dark' | 'sepia' | 'orbs-white' | 'orbs-black' | 'forest' | 'ocean' | 'sunset' | 'midnight' | 'candy' | 'bubblegum' | 'neon' | 'lemon' | 'galaxy' | 'rose' | 'coffee' | 'arctic' | 'autumn' | 'emerald' | 'vapor' | 'terminal' | 'sakura' | 'lagoon' | 'desert' | 'lavender' | 'slate' | 'crimson' | 'meadow' | 'aurora';
+export type Theme = 'light' | 'dark' | 'sepia' | 'orbs-white' | 'orbs-black' | 'forest' | 'ocean' | 'sunset' | 'midnight' | 'candy' | 'bubblegum' | 'neon' | 'lemon' | 'galaxy' | 'rose' | 'coffee' | 'arctic' | 'autumn' | 'emerald' | 'vapor' | 'terminal' | 'sakura' | 'lagoon' | 'desert' | 'lavender' | 'slate' | 'crimson' | 'meadow' | 'aurora' | 'coral' | 'storm' | 'mint' | 'sunset-dunes';
 
-export const VALID_THEMES: Theme[] = ['light', 'dark', 'sepia', 'orbs-white', 'orbs-black', 'forest', 'ocean', 'sunset', 'midnight', 'candy', 'bubblegum', 'neon', 'lemon', 'galaxy', 'rose', 'coffee', 'arctic', 'autumn', 'emerald', 'vapor', 'terminal', 'sakura', 'lagoon', 'desert', 'lavender', 'slate', 'crimson', 'meadow', 'aurora'];
+export const VALID_THEMES: Theme[] = ['light', 'dark', 'sepia', 'orbs-white', 'orbs-black', 'forest', 'ocean', 'sunset', 'midnight', 'candy', 'bubblegum', 'neon', 'lemon', 'galaxy', 'rose', 'coffee', 'arctic', 'autumn', 'emerald', 'vapor', 'terminal', 'sakura', 'lagoon', 'desert', 'lavender', 'slate', 'crimson', 'meadow', 'aurora', 'coral', 'storm', 'mint', 'sunset-dunes'];
 
 interface ThemeSelectorProps {
   current: Theme;
@@ -39,6 +39,10 @@ export const themes: { id: Theme; label: string; icon: string }[] = [
   { id: 'crimson', label: 'Crimson', icon: '🍷' },
   { id: 'meadow', label: 'Meadow', icon: '🌾' },
   { id: 'aurora', label: 'Aurora', icon: '🌈' },
+  { id: 'coral', label: 'Coral', icon: '🪸' },
+  { id: 'storm', label: 'Storm', icon: '⛈️' },
+  { id: 'mint', label: 'Mint', icon: '🌱' },
+  { id: 'sunset-dunes', label: 'Dunes', icon: '🏖️' },
 ];
 
 export default function ThemeSelector({ current, onChange }: ThemeSelectorProps) {
