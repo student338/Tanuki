@@ -1,5 +1,6 @@
-export { isTauri, getControlCenterHash, getDeviceId } from './bridge';
+export { isTauri, getControlCenterHash, getDeviceId, getControlCenterUrl } from './bridge';
 export { getSyncStatus, setControlCenterUrl, forceSync, queueMutation, getPendingMutations } from './bridge';
+export { getLocalConfig, setLocalConfig } from './bridge';
 export { loadModel, unloadModel, generateText, getModelStatus } from './bridge';
 export { getSystemInfo, getOptimalCtxSize, getGpuLayers } from './bridge';
 export type { SyncStatus, ModelStatus, SystemInfo, Mutation } from './bridge';
