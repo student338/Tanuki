@@ -39,6 +39,7 @@ export default function OobeWizard({ onComplete }: OobeWizardProps) {
   const [ccHash, setCcHash] = useState('');
   const [pairing, setPairing] = useState(false);
   const [paired, setPaired] = useState(false);
+  const [pairError, setPairError] = useState<string | null>(null);
 
   // Local model fields
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
@@ -109,9 +110,12 @@ export default function OobeWizard({ onComplete }: OobeWizardProps) {
   async function handlePair() {
     if (!ccUrl.trim() || !ccHash.trim()) return;
     setPairing(true);
+    setPairError(null);
     try {
       await setControlCenterUrl(ccUrl.trim(), ccHash.trim());
       setPaired(true);
+    } catch (err) {
+      setPairError(`Pairing failed: ${String(err)}`);
     } finally {
       setPairing(false);
     }
@@ -209,6 +213,7 @@ export default function OobeWizard({ onComplete }: OobeWizardProps) {
                 placeholder="Control center hash"
                 className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-400"
               />
+              {pairError && <p className="text-xs text-red-300">{pairError}</p>}
               {paired && <p className="text-sm text-green-300">✓ Paired with control center</p>}
             </div>
             <div className="flex gap-3 mt-6">
