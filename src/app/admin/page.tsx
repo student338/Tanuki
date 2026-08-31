@@ -493,9 +493,10 @@ export default function AdminPage() {
 
   return (
     <ThemeWrapper>
-    <div className="min-h-screen">
+    <div className="min-h-screen" style={{ ['--header-height' as string]: '57px' }}>
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-white/10 px-4 sm:px-6 py-3 flex justify-between items-center gap-3 backdrop-blur-xl bg-white/[0.06]"
+      <header
+        className="sticky top-0 z-40 border-b border-white/10 px-4 sm:px-6 py-3 flex justify-between items-center gap-3 backdrop-blur-xl bg-white/[0.06]"
         style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.20)' }}
       >
         <div className="flex items-center gap-3 min-w-0">
@@ -516,8 +517,9 @@ export default function AdminPage() {
         </div>
       </header>
 
-      {/* Tab navigation — horizontally scrollable so it never clips on iPad */}
-      <div className="sticky top-[57px] z-30 border-b border-white/10 backdrop-blur-xl bg-white/[0.04]">
+      {/* Tab navigation — horizontally scrollable so it never clips on iPad.
+          Uses --header-height set on the root div so the offset stays in sync. */}
+      <div className="sticky top-[var(--header-height,57px)] z-30 border-b border-white/10 backdrop-blur-xl bg-white/[0.04]">
         <div className="max-w-6xl mx-auto flex gap-1 overflow-x-auto px-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {adminTabs.map((tab) => (
             <button

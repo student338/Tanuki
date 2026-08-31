@@ -30,12 +30,10 @@ export default function LoginPage() {
   // fetch continuation is silently dropped, which previously left users stuck
   // on a spinning "Signing in…" button.
   function navigateTo(url: string) {
-    try {
-      window.location.assign(url);
-    } catch {
-      setContinueUrl(url);
-      return;
-    }
+    // All URLs passed here are same-origin paths, so assign() won't throw;
+    // the real iPadOS failure mode is a navigation that's silently dropped,
+    // which the timeout below covers by offering a manual link.
+    window.location.assign(url);
     // If the navigation did not take effect within 3s, offer a manual link.
     navigateTimer.current = setTimeout(() => setContinueUrl(url), 3000);
   }
