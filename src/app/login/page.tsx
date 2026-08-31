@@ -1,37 +1,81 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [continueUrl, setContinueUrl] = useState<string | null>(null);
+  const navigateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (navigateTimer.current) clearTimeout(navigateTimer.current);
+    };
+  }, []);
+
+  function destinationFor(role: string): string {
+    if (role === 'admin') return '/admin';
+    if (role === 'teacher') return '/teacher';
+    return '/student';
+  }
+
+  // Full navigation is required on iOS/iPadOS WebKit: cookies set via a fetch()
+  // response are not reliably visible to subsequent fetch() calls in the same
+  // page context, but they ARE available after a full page navigation.
+  // We use window.location.assign() (not .replace()) and schedule a manual
+  // fallback link — on some iPadOS versions location.replace() called inside a
+  // fetch continuation is silently dropped, which previously left users stuck
+  // on a spinning "Signing in…" button.
+  function navigateTo(url: string) {
+    try {
+      window.location.assign(url);
+    } catch {
+      setContinueUrl(url);
+      return;
+    }
+    // If the navigation did not take effect within 3s, offer a manual link.
+    navigateTimer.current = setTimeout(() => setContinueUrl(url), 3000);
+  }
 
   // Redirect already-authenticated users away from the login page.
-  // Use window.location.replace (full page navigation) for the same reason as
-  // the post-login redirect below: Safari on iOS/iPadOS needs a full navigation
-  // to reliably include the session cookie in subsequent fetch requests.
+  // Retry a few times before concluding the user is logged out: on iPadOS the
+  // cookie jar can lag a full navigation, and a premature "not authenticated"
+  // conclusion here causes the bounce-back-to-/login loop.
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.user?.role === 'admin') window.location.replace('/admin');
-        else if (data?.user?.role === 'teacher') window.location.replace('/teacher');
-        else if (data?.user?.role === 'student') window.location.replace('/student');
-      })
-      .catch(() => {});
+    let cancelled = false;
+    (async () => {
+      for (let attempt = 0; attempt < 6; attempt++) {
+        try {
+          const res = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            if (!cancelled && data?.user?.role) navigateTo(destinationFor(data.user.role));
+            return;
+          }
+          if (res.status !== 401) return; // server error — stay on the form
+        } catch {
+          // transient network failure — keep retrying
+        }
+        if (attempt < 5) await new Promise((r) => setTimeout(r, 400));
+      }
+      // After all retries: genuinely not authenticated, stay on the login form.
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
-    let navigated = false;
+    setContinueUrl(null);
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ username, password }),
       });
       if (!res.ok) {
@@ -41,22 +85,14 @@ export default function LoginPage() {
           errorMsg = errData.error || errorMsg;
         } catch { /* ignore JSON parse error */ }
         setError(errorMsg);
+        setLoading(false);
         return;
       }
       const data = await res.json();
-      navigated = true;
-      // Navigate immediately via full page navigation.  On iOS/iPadOS WebKit,
-      // cookies set via a fetch() response are not visible to subsequent
-      // fetch() calls in the same page context, but they ARE available after a
-      // full page navigation (window.location).  Polling with fetch would
-      // always time out on iPads for this reason, so we skip it entirely.
-      if (data.user.role === 'admin') window.location.replace('/admin');
-      else if (data.user.role === 'teacher') window.location.replace('/teacher');
-      else window.location.replace('/student');
+      navigateTo(destinationFor(data.user.role));
     } catch {
-      setError('Login failed');
-    } finally {
-      if (!navigated) setLoading(false);
+      setError('Login failed — check your connection and try again.');
+      setLoading(false);
     }
   }
 
@@ -122,6 +158,14 @@ export default function LoginPage() {
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
+          {continueUrl && (
+            <a
+              href={continueUrl}
+              className="mt-3 block text-center text-sm font-medium text-purple-200 hover:text-white underline underline-offset-4 transition-colors"
+            >
+              Signed in — tap here to continue →
+            </a>
+          )}
           <div className="mt-4 text-purple-300 text-xs text-center space-y-1">
             <p>Admin: admin / admin123</p>
             <p>Student: student / student123</p>

@@ -12,7 +12,7 @@ export async function confirmUnauthenticated(options?: {
   // the cookie jar settles; confirm auth state before redirecting.
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
+      const meRes = await fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' });
       if (meRes.ok) return false;
     } catch {
       // ignore transient network failures while checking
