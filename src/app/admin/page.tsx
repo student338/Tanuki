@@ -509,7 +509,7 @@ export default function AdminPage() {
           <ThemeSelector current={theme} onChange={handleThemeChange} />
           <button
             onClick={handleLogout}
-            className="text-sm opacity-70 hover:opacity-100 transition-opacity border border-current/20 px-3 py-2 rounded-xl hover:bg-black/10"
+            className="text-sm opacity-70 hover:opacity-100 transition-opacity border border-current/20 min-h-[44px] px-4 py-2 rounded-xl hover:bg-black/10"
           >
             Logout
           </button>

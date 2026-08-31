@@ -30,7 +30,7 @@ An AI-powered story generation web app for students.
 
 ### Themes
 
-Tanuki Stories ships with 21 built-in themes:
+Tanuki Stories ships with 33 built-in themes:
 
 | | | | |
 |---|---|---|---|
@@ -142,7 +142,7 @@ update.bat
   - Chapter count, reading complexity (Simple / Intermediate / Advanced), vocabulary complexity (Basic / Intermediate / Advanced)
   - A free-form plot outline
 - **Story history**: All previously generated stories are listed on the dashboard and can be re-read at any time.
-- **Themes**: 21 built-in themes (Light, Dark, Sepia, Forest, Ocean, Sunset, Midnight, Candy, Bubblegum, Neon, Lemon, Galaxy, Rose, Coffee, Arctic, Autumn, Emerald, Vapor, Orbs on White, Orbs on Black, Terminal) — chosen during onboarding and changeable at any time via the ⚙️ button.
+- **Themes**: 33 built-in themes (Light, Dark, Sepia, Forest, Ocean, Sunset, Midnight, Candy, Bubblegum, Neon, Lemon, Galaxy, Rose, Coffee, Arctic, Autumn, Emerald, Vapor, Orbs on White, Orbs on Black, Terminal, Sakura, Lagoon, Desert, Lavender, Slate, Crimson, Meadow, Aurora, Coral, Storm, Mint, Dunes) — chosen during onboarding and changeable at any time via the ⚙️ button.
 
 ### Admin Dashboard
 - **Settings**: Edit the system prompt sent to the AI, configure the API base URL and model name.

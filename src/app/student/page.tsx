@@ -337,24 +337,25 @@ export default function StudentPage() {
           </div>
           <div className="flex items-center gap-2">
             <ThemeSelector current={theme} onChange={handleThemeChange} />
-            <span className="mx-1 h-6 border-l border-current/20" aria-hidden="true" />
+            <span className="mx-1 h-6 border-l border-current/20 hidden sm:block" aria-hidden="true" />
             <button
               onClick={() => setShowOnboarding(true)}
               title="Settings"
-              className="text-sm opacity-60 hover:opacity-100 transition-opacity border border-current/20 px-3 py-2 rounded-xl hover:bg-black/10"
+              aria-label="Settings"
+              className="text-sm opacity-60 hover:opacity-100 transition-opacity border border-current/20 min-w-[44px] min-h-[44px] px-3 py-2 rounded-xl hover:bg-black/10 flex items-center justify-center"
             >
               ⚙️
             </button>
             <button
               onClick={handleLogout}
-              className="text-sm opacity-60 hover:opacity-100 transition-opacity border border-current/20 px-4 py-2 rounded-xl hover:bg-black/10"
+              className="text-sm opacity-60 hover:opacity-100 transition-opacity border border-current/20 min-h-[44px] px-4 py-2 rounded-xl hover:bg-black/10"
             >
               Logout
             </button>
           </div>
         </header>
 
-        <main className="max-w-2xl mx-auto p-6 space-y-8">
+        <main className="max-w-2xl lg:max-w-3xl mx-auto p-4 sm:p-6 space-y-8">
           <section className="glass-shimmer relative bg-white/[0.07] backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-xl"
             style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.07) inset, 0 8px 32px rgba(0,0,0,0.2)' }}
           >
