@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import StoryCard from '@/components/StoryCard';
+import ThemeWrapper from '@/components/ThemeWrapper';
+import ThemeSelector, { Theme, VALID_THEMES } from '@/components/ThemeSelector';
 import { Story, LockableField, StoryDefaults, ClassroomConfig, GlobalSafetyConfig } from '@/lib/storage';
 import { ReadingLevel, READING_LEVEL_VALUES } from '@/lib/reading-levels';
 import {
@@ -109,6 +111,24 @@ export default function AdminPage() {
     createdAt: string;
   }
   const [recordings, setRecordings] = useState<RecordingInfo[]>([]);
+
+  // Theme (synced with ThemeWrapper via localStorage + StorageEvent)
+  const [theme, setThemeState] = useState<Theme>('dark');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('tanuki_theme') as Theme | null;
+    if (saved && VALID_THEMES.includes(saved)) setThemeState(saved);
+  }, []);
+
+  function handleThemeChange(t: Theme) {
+    setThemeState(t);
+    localStorage.setItem('tanuki_theme', t);
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'tanuki_theme',
+      newValue: t,
+      storageArea: localStorage,
+    }));
+  }
 
   // Student settings management (per-user)
   const [editingSettings, setEditingSettings] = useState<string | null>(null);
@@ -475,24 +495,33 @@ export default function AdminPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-zinc-900 text-white">
+    <ThemeWrapper>
+    <div className="min-h-screen">
       {/* Header */}
-      <header className="border-b border-white/10 px-6 py-3 flex justify-between items-center backdrop-blur-sm bg-white/5">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">🦝</span>
-          <h1 className="text-lg font-bold">Tanuki — Admin</h1>
+      <header className="sticky top-0 z-40 border-b border-white/10 px-4 sm:px-6 py-3 flex justify-between items-center gap-3 backdrop-blur-xl bg-white/[0.06]"
+        style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.20)' }}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-2xl shrink-0">🦝</span>
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-lg font-bold leading-tight truncate">Tanuki Admin</h1>
+            <p className="text-[11px] opacity-50 leading-tight hidden sm:block">Dashboard &amp; controls</p>
+          </div>
         </div>
-        <button
-          onClick={handleLogout}
-          className="text-sm text-gray-400 hover:text-white transition-colors border border-white/20 px-3 py-1.5 rounded-xl hover:bg-white/10"
-        >
-          Logout
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <ThemeSelector current={theme} onChange={handleThemeChange} />
+          <button
+            onClick={handleLogout}
+            className="text-sm opacity-70 hover:opacity-100 transition-opacity border border-current/20 px-3 py-2 rounded-xl hover:bg-black/10"
+          >
+            Logout
+          </button>
+        </div>
       </header>
 
-      {/* Tab navigation */}
-      <div className="border-b border-white/10 bg-white/[0.03] px-4">
-        <div className="max-w-6xl mx-auto flex gap-1 overflow-x-auto">
+      {/* Tab navigation — horizontally scrollable so it never clips on iPad */}
+      <div className="sticky top-[57px] z-30 border-b border-white/10 backdrop-blur-xl bg-white/[0.04]">
+        <div className="max-w-6xl mx-auto flex gap-1 overflow-x-auto px-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {adminTabs.map((tab) => (
             <button
               key={tab.id}
@@ -500,7 +529,7 @@ export default function AdminPage() {
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
                 activeTab === tab.id
                   ? 'border-indigo-400 text-indigo-300'
-                  : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-white/30'
+                  : 'border-transparent opacity-60 hover:opacity-100 hover:border-white/30'
               }`}
             >
               <span>{tab.emoji}</span>
@@ -510,7 +539,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <main className="max-w-6xl mx-auto p-4">
+      <main className="max-w-6xl mx-auto p-4 sm:p-6">
 
         {/* ── OVERVIEW TAB ─────────────────────────────────────────────── */}
         {activeTab === 'overview' && (
@@ -552,25 +581,25 @@ export default function AdminPage() {
             {/* Two-column layout: analytics table + sidebar charts */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Analytics table */}
-              <div className="lg:col-span-2 bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+              <div className="lg:col-span-2 glass-shimmer relative bg-white/[0.05] backdrop-blur-xl rounded-3xl border border-white/15 overflow-hidden shadow-xl">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
                   <h2 className="text-sm font-semibold flex items-center gap-2">
                     <span>📊</span> Student Activity
                   </h2>
                   <button
                     onClick={loadAnalytics}
-                    className="text-xs text-gray-400 hover:text-white border border-white/20 px-2.5 py-1 rounded-lg hover:bg-white/10 transition-colors"
+                    className="text-xs opacity-70 hover:opacity-100 border border-current/20 px-2.5 py-1 rounded-lg hover:bg-black/10 transition-colors"
                   >
                     Refresh
                   </button>
                 </div>
                 {analytics.length === 0 ? (
-                  <p className="text-gray-500 text-sm p-4">No student data yet.</p>
+                  <p className="opacity-50 text-sm p-4">No student data yet.</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="text-left text-gray-400 border-b border-white/10 bg-white/[0.02]">
+                        <tr className="text-left opacity-60 border-b border-white/10 bg-white/[0.02]">
                           <th className="px-3 py-2.5 font-medium">Student</th>
                           <th className="px-3 py-2.5 font-medium">Level</th>
                           <th className="px-3 py-2.5 font-medium text-center">Status</th>
@@ -650,8 +679,8 @@ export default function AdminPage() {
               {/* Sidebar: reading level distribution + top genres */}
               <div className="space-y-4">
                 {summary && Object.keys(summary.readingLevelDistribution).length > 0 && (
-                  <div className="bg-white/5 rounded-2xl border border-white/10 p-4">
-                    <h3 className="text-sm font-semibold mb-3 text-gray-300">Reading Levels</h3>
+                  <div className="glass-shimmer relative bg-white/[0.05] backdrop-blur-xl rounded-3xl border border-white/15 p-4 shadow-xl">
+                    <h3 className="text-sm font-semibold mb-3 opacity-90">Reading Levels</h3>
                     <div className="space-y-2">
                       {READING_LEVEL_VALUES.filter((lvl) => summary.readingLevelDistribution[lvl] > 0).map((lvl) => {
                         const count = summary.readingLevelDistribution[lvl];
@@ -676,8 +705,8 @@ export default function AdminPage() {
                 )}
 
                 {summary && summary.topGenres.length > 0 && (
-                  <div className="bg-white/5 rounded-2xl border border-white/10 p-4">
-                    <h3 className="text-sm font-semibold mb-3 text-gray-300">Top Genres</h3>
+                  <div className="glass-shimmer relative bg-white/[0.05] backdrop-blur-xl rounded-3xl border border-white/15 p-4 shadow-xl">
+                    <h3 className="text-sm font-semibold mb-3 opacity-90">Top Genres</h3>
                     <div className="space-y-2">
                       {summary.topGenres.map(({ genre, count }) => {
                         const pct = Math.round((count / summary.topGenres[0].count) * 100);
@@ -702,19 +731,19 @@ export default function AdminPage() {
 
                 {/* Quick stats */}
                 {summary && (
-                  <div className="bg-white/5 rounded-2xl border border-white/10 p-4 space-y-2">
-                    <h3 className="text-sm font-semibold mb-2 text-gray-300">All Time</h3>
+                  <div className="glass-shimmer relative bg-white/[0.05] backdrop-blur-xl rounded-3xl border border-white/15 p-4 space-y-2 shadow-xl">
+                    <h3 className="text-sm font-semibold mb-2 opacity-90">All Time</h3>
                     <div className="flex justify-between text-xs">
-                      <span className="text-gray-400">Total stories</span>
-                      <span className="text-gray-200 font-mono font-semibold">{summary.totalStories}</span>
+                      <span className="opacity-60">Total stories</span>
+                      <span className="font-mono font-semibold">{summary.totalStories}</span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-gray-400">Active students (30d)</span>
-                      <span className="text-gray-200 font-mono font-semibold">{summary.activeStudents30Days}</span>
+                      <span className="opacity-60">Active students (30d)</span>
+                      <span className="font-mono font-semibold">{summary.activeStudents30Days}</span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-gray-400">Avg stories/student</span>
-                      <span className="text-gray-200 font-mono font-semibold">
+                      <span className="opacity-60">Avg stories/student</span>
+                      <span className="font-mono font-semibold">
                         {summary.totalStudents > 0 ? (summary.totalStories / summary.totalStudents).toFixed(1) : '—'}
                       </span>
                     </div>
@@ -730,7 +759,7 @@ export default function AdminPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Left: Management */}
             <div className="space-y-4">
-              <div className="bg-white/5 rounded-2xl border border-white/10 p-4 space-y-4">
+              <div className="glass-shimmer relative bg-white/[0.05] backdrop-blur-xl rounded-3xl border border-white/15 p-5 space-y-4 shadow-xl">
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                   <span>👥</span> Manage Students
                 </h2>
@@ -822,7 +851,7 @@ export default function AdminPage() {
               </div>
 
               {/* Teacher management (admin only) */}
-              <div className="bg-white/5 rounded-2xl border border-white/10 p-4 space-y-4">
+              <div className="glass-shimmer relative bg-white/[0.05] backdrop-blur-xl rounded-3xl border border-white/15 p-5 space-y-4 shadow-xl">
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                   <span>👩‍🏫</span> Teachers
                 </h2>
@@ -915,7 +944,7 @@ export default function AdminPage() {
             </div>
 
             {/* Right: Student onboarding settings */}
-            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+            <div className="glass-shimmer relative bg-white/[0.05] backdrop-blur-xl rounded-3xl border border-white/15 overflow-hidden shadow-xl">
               <div className="px-4 py-3 border-b border-white/10">
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                   <span>🎓</span> Student Settings
@@ -972,7 +1001,7 @@ export default function AdminPage() {
             </div>
 
             {Object.keys(classrooms).length === 0 ? (
-              <div className="bg-white/5 rounded-2xl border border-white/10 p-8 text-center text-gray-500 text-sm">
+              <div className="glass-shimmer relative bg-white/[0.05] backdrop-blur-xl rounded-3xl border border-white/15 p-8 text-center opacity-60 text-sm shadow-xl">
                 No classrooms yet.
               </div>
             ) : (
@@ -1009,7 +1038,7 @@ export default function AdminPage() {
         {/* ── SAFETY TAB ───────────────────────────────────────────────── */}
         {activeTab === 'safety' && (
           <div className="max-w-2xl space-y-5">
-            <div className="bg-white/5 rounded-2xl border border-white/10 p-5 space-y-5">
+            <div className="glass-shimmer relative bg-white/[0.05] backdrop-blur-xl rounded-3xl border border-white/15 p-5 space-y-5 shadow-xl">
               <h2 className="text-sm font-semibold flex items-center gap-2">
                 <span>🛡️</span> Global Safety Defaults
               </h2>
@@ -1064,7 +1093,7 @@ export default function AdminPage() {
         {activeTab === 'config' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* API Configuration */}
-            <div className="bg-white/5 rounded-2xl border border-white/10 p-5 space-y-4">
+            <div className="glass-shimmer relative bg-white/[0.05] backdrop-blur-xl rounded-3xl border border-white/15 p-5 space-y-4 shadow-xl">
               <h2 className="text-sm font-semibold flex items-center gap-2">
                 <span>🔌</span> API Configuration
               </h2>
@@ -1155,7 +1184,7 @@ export default function AdminPage() {
             </div>
 
             {/* Student Config Locks */}
-            <div className="bg-white/5 rounded-2xl border border-white/10 p-5 space-y-4">
+            <div className="glass-shimmer relative bg-white/[0.05] backdrop-blur-xl rounded-3xl border border-white/15 p-5 space-y-4 shadow-xl">
               <h2 className="text-sm font-semibold flex items-center gap-2">
                 <span>🔒</span> Student Configuration Locks
               </h2>
@@ -1262,7 +1291,7 @@ export default function AdminPage() {
         {activeTab === 'content' && (
           <div className="space-y-5">
             {/* Recordings */}
-            <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+            <div className="glass-shimmer relative bg-white/[0.05] backdrop-blur-xl rounded-3xl border border-white/15 overflow-hidden shadow-xl">
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                   <span>🎙️</span> Reading Recordings ({recordings.length})
@@ -1322,7 +1351,7 @@ export default function AdminPage() {
                 <span>📚</span> All Generated Stories ({stories.length})
               </h2>
               {stories.length === 0 ? (
-                <div className="text-gray-500 text-center py-12 bg-white/5 rounded-2xl border border-white/10">
+                <div className="opacity-60 text-center py-12 glass-shimmer relative bg-white/[0.05] backdrop-blur-xl rounded-3xl border border-white/15 shadow-xl">
                   No stories yet. Students will generate them from their dashboard.
                 </div>
               ) : (
@@ -1345,6 +1374,7 @@ export default function AdminPage() {
 
       </main>
     </div>
+    </ThemeWrapper>
   );
 }
 
@@ -1364,19 +1394,19 @@ function StatCard({
   color: 'blue' | 'green' | 'purple' | 'amber';
 }) {
   const colorMap = {
-    blue: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
-    green: 'bg-green-500/10 border-green-500/20 text-green-400',
-    purple: 'bg-purple-500/10 border-purple-500/20 text-purple-400',
-    amber: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+    blue: 'from-blue-500/15 to-blue-500/5 border-blue-400/25 text-blue-300',
+    green: 'from-emerald-500/15 to-emerald-500/5 border-emerald-400/25 text-emerald-300',
+    purple: 'from-purple-500/15 to-purple-500/5 border-purple-400/25 text-purple-300',
+    amber: 'from-amber-500/15 to-amber-500/5 border-amber-400/25 text-amber-300',
   };
   return (
-    <div className={`rounded-2xl border p-4 ${colorMap[color]}`}>
-      <div className="flex items-center gap-2 mb-1">
-        <span>{emoji}</span>
-        <span className="text-xs text-gray-400">{label}</span>
+    <div className={`rounded-2xl border bg-gradient-to-br p-4 backdrop-blur-sm transition-transform duration-200 hover:-translate-y-0.5 ${colorMap[color]}`}>
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-lg">{emoji}</span>
+        <span className="text-xs opacity-70 font-medium">{label}</span>
       </div>
-      <div className="text-2xl font-bold tracking-tight">{value}</div>
-      <div className="text-xs text-gray-500 mt-0.5">{sub}</div>
+      <div className="text-3xl font-bold tracking-tight">{value}</div>
+      <div className="text-xs opacity-60 mt-1">{sub}</div>
     </div>
   );
 }
