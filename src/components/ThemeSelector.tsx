@@ -1,8 +1,8 @@
 'use client';
 
-export type Theme = 'light' | 'dark' | 'sepia' | 'orbs-white' | 'orbs-black' | 'forest' | 'ocean' | 'sunset' | 'midnight' | 'candy' | 'bubblegum' | 'neon' | 'lemon' | 'galaxy' | 'rose' | 'coffee' | 'arctic' | 'autumn' | 'emerald' | 'vapor' | 'terminal';
+export type Theme = 'light' | 'dark' | 'sepia' | 'orbs-white' | 'orbs-black' | 'forest' | 'ocean' | 'sunset' | 'midnight' | 'candy' | 'bubblegum' | 'neon' | 'lemon' | 'galaxy' | 'rose' | 'coffee' | 'arctic' | 'autumn' | 'emerald' | 'vapor' | 'terminal' | 'sakura' | 'lagoon' | 'desert' | 'lavender' | 'slate' | 'crimson' | 'meadow' | 'aurora';
 
-export const VALID_THEMES: Theme[] = ['light', 'dark', 'sepia', 'orbs-white', 'orbs-black', 'forest', 'ocean', 'sunset', 'midnight', 'candy', 'bubblegum', 'neon', 'lemon', 'galaxy', 'rose', 'coffee', 'arctic', 'autumn', 'emerald', 'vapor', 'terminal'];
+export const VALID_THEMES: Theme[] = ['light', 'dark', 'sepia', 'orbs-white', 'orbs-black', 'forest', 'ocean', 'sunset', 'midnight', 'candy', 'bubblegum', 'neon', 'lemon', 'galaxy', 'rose', 'coffee', 'arctic', 'autumn', 'emerald', 'vapor', 'terminal', 'sakura', 'lagoon', 'desert', 'lavender', 'slate', 'crimson', 'meadow', 'aurora'];
 
 interface ThemeSelectorProps {
   current: Theme;
@@ -31,6 +31,14 @@ export const themes: { id: Theme; label: string; icon: string }[] = [
   { id: 'emerald', label: 'Emerald', icon: '💎' },
   { id: 'vapor', label: 'Vapor', icon: '🌸' },
   { id: 'terminal', label: 'Terminal', icon: '🖥️' },
+  { id: 'sakura', label: 'Sakura', icon: '🌸' },
+  { id: 'lagoon', label: 'Lagoon', icon: '🏝️' },
+  { id: 'desert', label: 'Desert', icon: '🏜️' },
+  { id: 'lavender', label: 'Lavender', icon: '💜' },
+  { id: 'slate', label: 'Slate', icon: '🪨' },
+  { id: 'crimson', label: 'Crimson', icon: '🍷' },
+  { id: 'meadow', label: 'Meadow', icon: '🌾' },
+  { id: 'aurora', label: 'Aurora', icon: '🌈' },
 ];
 
 export default function ThemeSelector({ current, onChange }: ThemeSelectorProps) {

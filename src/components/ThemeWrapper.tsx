@@ -26,6 +26,14 @@ const themeClasses: Record<Theme, string> = {
   emerald: 'bg-emerald-950 text-emerald-100',
   vapor: 'bg-fuchsia-950 text-pink-200',
   terminal: 'bg-black text-green-400',
+  sakura: 'bg-pink-50 text-pink-900',
+  lagoon: 'bg-teal-950 text-teal-100',
+  desert: 'bg-amber-100 text-amber-950',
+  lavender: 'bg-purple-100 text-purple-950',
+  slate: 'bg-slate-800 text-slate-100',
+  crimson: 'bg-red-950 text-red-100',
+  meadow: 'bg-lime-50 text-lime-950',
+  aurora: 'bg-indigo-950 text-indigo-100',
 };
 
 interface ThemeWrapperProps {
