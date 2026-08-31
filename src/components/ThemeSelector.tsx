@@ -29,7 +29,7 @@ export const themes: { id: Theme; label: string; icon: string }[] = [
   { id: 'arctic', label: 'Arctic', icon: '🧊' },
   { id: 'autumn', label: 'Autumn', icon: '🍂' },
   { id: 'emerald', label: 'Emerald', icon: '💎' },
-  { id: 'vapor', label: 'Vapor', icon: '🌸' },
+  { id: 'vapor', label: 'Vapor', icon: '🌫️' },
   { id: 'terminal', label: 'Terminal', icon: '🖥️' },
   { id: 'sakura', label: 'Sakura', icon: '🌸' },
   { id: 'lagoon', label: 'Lagoon', icon: '🏝️' },
