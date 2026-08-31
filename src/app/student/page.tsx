@@ -330,14 +330,14 @@ export default function StudentPage() {
       )}
 
       <div className="min-h-screen">
-        <header className="border-b border-white/10 px-6 py-4 flex justify-between items-center bg-white/[0.06] backdrop-blur-xl shadow-sm"
-          style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.08)' }}
+        <header className="sticky top-0 z-40 border-b border-white/10 px-4 sm:px-6 py-3.5 flex justify-between items-center gap-3 bg-white/[0.06] backdrop-blur-xl"
+          style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.18)' }}
         >
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🦝</span>
-            <h1 className="text-xl font-bold">Tanuki Stories</h1>
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="text-2xl shrink-0">🦝</span>
+            <h1 className="text-lg sm:text-xl font-bold truncate">Tanuki Stories</h1>
             {onboardingData?.readingLevel && (
-              <span className="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 px-2 py-0.5 rounded-full">
+              <span className="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 px-2 py-0.5 rounded-full whitespace-nowrap hidden sm:inline">
                 {onboardingData.readingLevel}
               </span>
             )}
@@ -368,13 +368,13 @@ export default function StudentPage() {
             {/* top highlight */}
             <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent rounded-t-3xl" />
 
-            {/* Mode toggle */}
-            <div className="flex items-center gap-1 mb-4 bg-black/10 rounded-2xl p-1 w-fit">
+            {/* Mode toggle — segmented control */}
+            <div className="flex items-center gap-1 mb-5 bg-black/15 rounded-2xl p-1 w-full sm:w-fit border border-current/10">
               <button
                 type="button"
                 onClick={() => setInfoMode(false)}
-                className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-all ${
-                  !infoMode ? 'bg-indigo-600 text-white shadow' : 'opacity-60 hover:opacity-90'
+                className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                  !infoMode ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'opacity-60 hover:opacity-90'
                 }`}
               >
                 ✨ Story Mode
@@ -382,8 +382,8 @@ export default function StudentPage() {
               <button
                 type="button"
                 onClick={() => setInfoMode(true)}
-                className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-all ${
-                  infoMode ? 'bg-teal-600 text-white shadow' : 'opacity-60 hover:opacity-90'
+                className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                  infoMode ? 'bg-teal-600 text-white shadow-lg shadow-teal-900/40' : 'opacity-60 hover:opacity-90'
                 }`}
               >
                 🔍 Info Mode
@@ -607,10 +607,10 @@ export default function StudentPage() {
             <button
               onClick={handleGenerate}
               disabled={generating || planningStage !== 'idle' || !request.trim()}
-              className={`mt-4 w-full text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${
+              className={`mt-5 w-full text-white font-semibold py-3.5 rounded-2xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl active:scale-[0.99] ${
                 infoMode
-                  ? 'bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700'
-                  : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700'
+                  ? 'bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 shadow-teal-900/30'
+                  : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 shadow-indigo-900/30'
               }`}
             >
               {planningStage === 'planning' ? (

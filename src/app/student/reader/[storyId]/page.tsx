@@ -374,8 +374,8 @@ export default function ReaderPage() {
         )}
 
         {/* Header */}
-        <header className="border-b border-white/10 px-6 py-4 flex justify-between items-center bg-white/[0.06] backdrop-blur-xl shadow-sm"
-          style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.08)' }}
+        <header className="sticky top-0 z-40 border-b border-white/10 px-4 sm:px-6 py-3.5 flex justify-between items-center gap-3 bg-white/[0.06] backdrop-blur-xl"
+          style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.18)' }}
         >
           <div className="flex items-center gap-3">
             <button
