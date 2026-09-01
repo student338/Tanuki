@@ -16,7 +16,10 @@ export const viewport: Viewport = {
   themeColor: '#e94560',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // No maximumScale/user-scalable lock: iPadOS ignores it anyway, and keeping
+  // pinch-zoom available is an accessibility win. viewportFit lets iPad
+  // safe-area padding (added in globals.css) take effect.
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

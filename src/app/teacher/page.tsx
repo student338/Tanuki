@@ -11,7 +11,7 @@ import {
   MATURITY_LEVEL_MAX,
   MATURITY_LEVEL_DEFAULT,
 } from '@/lib/safety';
-import { confirmUnauthenticated } from '@/lib/client-auth';
+import { confirmUnauthenticated, fetchWithAuthRetry } from '@/lib/client-auth';
 import type { StudentAnalytics, AnalyticsSummary } from '@/app/api/admin/analytics/route';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -68,19 +68,16 @@ export default function TeacherPage() {
   }, []);
 
   const load = useCallback(async () => {
+    // Retry on transient 401/403 — Safari/iPadOS cookie jar lags after login.
     let [cfgRes, meRes] = await Promise.all([
       fetch('/api/admin/config'),
       fetch('/api/auth/me'),
     ]);
     if (cfgRes.status === 403 || cfgRes.status === 401 || meRes.status === 401) {
-      for (let attempt = 0; attempt < 5; attempt++) {
-        await new Promise((r) => setTimeout(r, 300));
-        [cfgRes, meRes] = await Promise.all([
-          fetch('/api/admin/config'),
-          fetch('/api/auth/me'),
-        ]);
-        if (cfgRes.status !== 403 && cfgRes.status !== 401 && meRes.status !== 401) break;
-      }
+      [cfgRes, meRes] = await Promise.all([
+        fetchWithAuthRetry('/api/admin/config'),
+        fetchWithAuthRetry('/api/auth/me', undefined, { retryStatuses: [401] }),
+      ]);
       if (cfgRes.status === 403 || cfgRes.status === 401 || meRes.status === 401) {
         if (await confirmUnauthenticated()) router.push('/login');
         return;

@@ -9,6 +9,7 @@ export async function POST(req: NextRequest) {
   }
   const token = createSessionToken(user);
   const res = NextResponse.json({ user });
+  res.headers.set('Cache-Control', 'no-store');
   res.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',

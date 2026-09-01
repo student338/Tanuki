@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-const CACHE_NAME = 'tanuki-v1';
+const CACHE_NAME = 'tanuki-v2';
 const STATIC_ASSETS = [
   '/',
   '/login/',
@@ -41,6 +41,13 @@ self.addEventListener('fetch', (event) => {
 
   // Skip non-GET requests
   if (request.method !== 'GET') return;
+
+  // Auth endpoints must never be served from (or stored in) the cache —
+  // a cached 401 from /api/auth/me causes login bounce-loops on iPadOS.
+  if (url.pathname.startsWith('/api/auth/')) {
+    event.respondWith(fetch(request));
+    return;
+  }
 
   // API requests: network-first with cache fallback
   if (url.pathname.startsWith('/api/')) {
